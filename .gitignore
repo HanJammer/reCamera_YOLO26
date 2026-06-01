@@ -1,0 +1,17 @@
+# Local model artifacts
+*.pt
+*.onnx
+*.mlir
+*.cvimodel
+*.npz
+*.npy
+*.jpg
+*.jpeg
+*.png
+
+# Device dumps may contain local config/flows; keep them out of git by default.
+device_snapshot/
+
+# Python
+__pycache__/
+.venv/
