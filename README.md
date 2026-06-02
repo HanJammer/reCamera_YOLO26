@@ -198,6 +198,20 @@ The helper sends:
 
 ## Known issues and workarounds
 
+
+### Node-RED Deploy is required
+
+Changing or uploading a model in the Node-RED model node is not enough by itself. After changing the model node configuration, press **Deploy** in Node-RED.
+
+If you skip Deploy, the preview/runtime path may continue to behave like the previous flow/model state, which makes bounding boxes look unchanged and causes misleading debugging.
+
+Recommended after every model change:
+
+1. upload/select the model,
+2. check/fix `model.json` metadata if needed,
+3. press **Deploy** in Node-RED,
+4. probe WebSocket `8090` or verify the preview.
+
 ### UI upload resets classes
 
 Uploading through the firmware UI or Node-RED model node can produce:
