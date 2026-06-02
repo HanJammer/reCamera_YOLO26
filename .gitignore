@@ -17,3 +17,5 @@ __pycache__/
 .venv/
 
 device_backups/
+jobs/
+.venv-app/

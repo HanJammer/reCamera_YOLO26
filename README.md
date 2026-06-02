@@ -76,6 +76,50 @@ YOLO26n detection from the HuggingFace ONNX repo instead uses:
 
 So the immediate failure is not mysterious: the converter is asking for tensors that do not exist in the YOLO26 graph.
 
+
+## One-click local converter WebUI
+
+A first user-friendly converter is included as a local FastAPI web app. It still uses Docker/Sophgo TPU-MLIR under the hood, but the user workflow is browser-based:
+
+```bash
+python -m venv .venv-app
+# Linux/macOS:
+. .venv-app/bin/activate
+# Windows PowerShell:
+# .venv-app\Scripts\Activate.ps1
+
+pip install -r requirements-app.txt
+python -m recamera_converter_app
+```
+
+Open:
+
+```text
+http://127.0.0.1:7860
+```
+
+Upload:
+
+- ONNX model,
+- test image,
+- optional comma-separated classes.
+
+The app derives output tensor names, runs `sophgo/tpuc_dev:v3.1` through Docker, and returns a ZIP containing:
+
+- `*_cv181x_f16.cvimodel`,
+- `model.json`,
+- `output_names.txt`,
+- `commands.sh`,
+- `conversion.log`.
+
+Current v1 limitations:
+
+- detection only,
+- F16 only,
+- CV181x only,
+- Docker Desktop/Engine required,
+- no automatic camera deploy yet.
+
 ## Convert YOLO26n detection locally
 
 This repo currently assumes Docker/Sophgo TPU-MLIR for conversion. A pure Python-only converter is not realistic because TPU-MLIR is a native compiler toolchain.

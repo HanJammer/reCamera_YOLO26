@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>reCamera ONNX Converter</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main>
+    <h1>reCamera ONNX → CVI Model Converter</h1>
+    <p class="lead">Upload a YOLO detection ONNX and a test image. The tool derives YOLO11/YOLO26 output names, runs TPU-MLIR in Docker, and returns a reCamera-ready <code>.cvimodel</code> + <code>model.json</code>.</p>
+    <section class="warning">
+      <strong>v1 scope:</strong> detection models only, CV181x target, F16 precision. Segmentation/pose/classification are not supported yet.<br />
+      <strong>Backend:</strong> {{ docker_hint }} Uses <code>sophgo/tpuc_dev:v3.1</code>.
+    </section>
+    <form action="/convert" method="post" enctype="multipart/form-data">
+      <label>Model name
+        <input name="model_name" value="yolo26n" required />
+      </label>
+      <label>ONNX file
+        <input name="onnx_file" type="file" accept=".onnx" required />
+      </label>
+      <label>Test image
+        <input name="test_image" type="file" accept="image/*" required />
+      </label>
+      <label>Classes, comma-separated
+        <textarea name="classes_text" rows="7">{{ coco_csv }}</textarea>
+      </label>
+      <label class="check"><input type="checkbox" name="pull_image" checked /> Pull/update Docker image before conversion</label>
+      <button type="submit">Convert</button>
+    </form>
+    <section>
+      <h2>What you get</h2>
+      <ul>
+        <li><code>*_cv181x_f16.cvimodel</code></li>
+        <li><code>model.json</code> with class names</li>
+        <li><code>output_names.txt</code></li>
+        <li><code>commands.sh</code> and conversion log</li>
+        <li>ZIP bundle for download</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

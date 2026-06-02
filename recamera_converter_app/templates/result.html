@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conversion result</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main>
+    {% if ok %}
+      <h1>Conversion complete</h1>
+      <p class="success">Generated reCamera model bundle for job <code>{{ result.job_id }}</code>.</p>
+      <ul>
+        <li><a href="/download/{{ result.job_id }}/{{ result.cvimodel.name }}">Download {{ result.cvimodel.name }}</a></li>
+        <li><a href="/download/{{ result.job_id }}/model.json">Download model.json</a></li>
+        <li><a href="/download/{{ result.job_id }}/{{ result.zip_path.name }}">Download ZIP bundle</a></li>
+        <li><a href="/download/{{ result.job_id }}/conversion.log">Download conversion.log</a></li>
+      </ul>
+      <h2>Derived output names</h2>
+      <pre>{% for name in result.output_names %}{{ name }}
+{% endfor %}</pre>
+    {% else %}
+      <h1>Conversion failed</h1>
+      <p class="error">The converter hit a mine. Logs below.</p>
+      <pre>{{ error }}</pre>
+    {% endif %}
+    <p><a href="/">Back</a></p>
+  </main>
+</body>
+</html>
