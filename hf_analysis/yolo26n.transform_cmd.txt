@@ -1,0 +1,30 @@
+# Derived output_names:
+#   /model.23/one2one_cv2.0/one2one_cv2.0.2/Conv_output_0
+#   /model.23/one2one_cv3.0/one2one_cv3.0.2/Conv_output_0
+#   /model.23/one2one_cv2.1/one2one_cv2.1.2/Conv_output_0
+#   /model.23/one2one_cv3.1/one2one_cv3.1.2/Conv_output_0
+#   /model.23/one2one_cv2.2/one2one_cv2.2.2/Conv_output_0
+#   /model.23/one2one_cv3.2/one2one_cv3.2.2/Conv_output_0
+
+model_transform \
+  --model_name \
+  yolo26n \
+  --model_def \
+  models/yolo26n.onnx \
+  --input_shapes \
+  '[[1,3,640,640]]' \
+  --mean \
+  0.0,0.0,0.0 \
+  --scale \
+  0.0039216,0.0039216,0.0039216 \
+  --keep_aspect_ratio \
+  --pixel_format \
+  rgb \
+  --output_names \
+  /model.23/one2one_cv2.0/one2one_cv2.0.2/Conv_output_0,/model.23/one2one_cv3.0/one2one_cv3.0.2/Conv_output_0,/model.23/one2one_cv2.1/one2one_cv2.1.2/Conv_output_0,/model.23/one2one_cv3.1/one2one_cv3.1.2/Conv_output_0,/model.23/one2one_cv2.2/one2one_cv2.2.2/Conv_output_0,/model.23/one2one_cv3.2/one2one_cv3.2.2/Conv_output_0 \
+  --test_input \
+  /app/default_dataset/000000179487.jpg \
+  --test_result \
+  yolo26n_top_outputs.npz \
+  --mlir \
+  /tmp/onnx_cvimodel_work/yolo26n.mlir

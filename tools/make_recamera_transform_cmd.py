@@ -19,9 +19,9 @@ from pathlib import Path
 import onnx
 
 BRANCH_RE = re.compile(
-    r"(?P<prefix>.*/model\.(?P<model_idx>\d+))/(?:cv(?P<branch>[23])\.(?P<scale>\d+))/(?:cv[23]\.\d+\.2)/(?:Conv_output_0)$"
+    r"(?P<prefix>.*/model\.(?P<model_idx>\d+))/(?:(?:one2one_)?cv(?P<branch>[23])\.(?P<scale>\d+))/(?:(?:one2one_)?cv[23]\.\d+\.2)/(?:Conv_output_0)$"
 )
-LOOSE_RE = re.compile(r"/model\.(?P<model_idx>\d+)/cv(?P<branch>[23])\.(?P<scale>\d+)/.*Conv", re.I)
+LOOSE_RE = re.compile(r"/model\.(?P<model_idx>\d+)/(?:one2one_)?cv(?P<branch>[23])\.(?P<scale>\d+)/.*Conv", re.I)
 
 
 def all_tensor_names(model: onnx.ModelProto) -> list[str]:
