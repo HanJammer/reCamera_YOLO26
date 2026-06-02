@@ -1,0 +1,16 @@
+HTTP/1.1 101 Switching Protocols
+frame=0 opcode=2 bytes=35107
+{
+  "code": 0,
+  "msg": null,
+  "box_count": 0,
+  "boxes_head": [],
+  "data_keys": [
+    "count",
+    "image",
+    "keypoints",
+    "labels",
+    "perf",
+    "resolution"
+  ]
+}

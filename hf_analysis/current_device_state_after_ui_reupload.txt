@@ -1,0 +1,23 @@
+== API getModelInfo ==
+{"code":0,"data":{"model_info":"{\"model_id\":\"0\",\"model_name\":\"yolo26n_cv181x_f16.cvimodel\",\"classes\":[\"\"]}"},"msg":"OK"}
+
+== device model files ==
+/userdata/MODEL:
+total 3.0M
+-rw-r--r-- 1 root root 3.0M Feb 21  2025 model.cvimodel
+-rw-r--r-- 1 root root 1.9K Feb 21  2025 model.json
+
+/userdata/Models:
+total 6.7M
+-rw-r--r-- 1 root root 6.7M Jun  2 00:46 model.cvimodel
+-rw-r--r-- 1 root root   74 Jun  2 00:46 model.json
+
+{"model_id":"0","model_name":"yolo26n_cv181x_f16.cvimodel","classes":[""]}
+75b13a9609fcafe5356316b9950e9861  /userdata/Models/model.cvimodel
+
+  170 recamera node-red
+  698 root     /usr/local/bin/sscma-node --start
+
+LISTEN 0      0            0.0.0.0:80        0.0.0.0:*                                      
+LISTEN 0      0            0.0.0.0:1880      0.0.0.0:*    users:(("node-red",pid=170,fd=19))
+LISTEN 0      0            0.0.0.0:8090      0.0.0.0:*                                      
