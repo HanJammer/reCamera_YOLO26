@@ -78,7 +78,13 @@ model_transform \
   --mlir /tmp/onnx_cvimodel_work/yolo26n.mlir
 ```
 
-This command has not yet been run through TPU-MLIR on this node because `model_transform`/`tpu_mlir` is not installed locally and Docker is not currently available here.
+Before running this command, create the output directory inside the container:
+
+```bash
+mkdir -p /tmp/onnx_cvimodel_work
+```
+
+HanJammer's first run confirmed the YOLO26 `output_names` issue is fixed: TPU-MLIR no longer failed on missing tensor names. The first attempt failed only because `/tmp/onnx_cvimodel_work` did not exist. After creating the directory, `model_transform` completed successfully: `npz compare PASSED`, producing `final_opt.onnx`, `yolo26n_in_f32.npz`, `yolo26n_top_outputs.npz`, and MLIR artifacts under `/tmp/onnx_cvimodel_work`. This has not been run on the BORG9 node because `model_transform`/`tpu_mlir` is not installed locally and Docker is not currently available there.
 
 ## `yolo26n-seg.onnx`
 

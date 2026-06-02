@@ -67,6 +67,8 @@ curl -L \
   -o models/yolo26n.onnx
 ```
 
+This file is intentionally not committed to git; ONNX/model artifacts are ignored by `.gitignore`.
+
 ## Generate the correct `model_transform` command
 
 The Seeed wiki uses YOLO11 tensor names. For YOLO26, use this repo's helper:
@@ -98,11 +100,19 @@ cv2 / cv3
 
 ## First conversion step: ONNX -> MLIR
 
+Create output directories first. The generated command may write to `/tmp/onnx_cvimodel_work`, and TPU-MLIR will not create missing parent directories for you:
+
+```bash
+mkdir -p /tmp/onnx_cvimodel_work
+```
+
 Inside the TPU-MLIR container, run the command from:
 
 ```bash
-hf_analysis/yolo26n.transform_cmd.txt
+cat hf_analysis/yolo26n.transform_cmd.txt
 ```
+
+Then copy/paste and run it, or run your equivalent command directly.
 
 If your calibration/test image path is different, replace:
 
@@ -118,7 +128,7 @@ with an actual image available inside the container, for example:
 
 ## Second conversion step: MLIR -> cvimodel
 
-If `model_transform` succeeds, the next approximate command is:
+If `model_transform` succeeds and prints `npz compare PASSED`, the next command is:
 
 ```bash
 model_deploy \
@@ -134,7 +144,7 @@ model_deploy \
   --model yolo26n_cv181x_f16.cvimodel
 ```
 
-This mirrors Seeed's YOLO11 flow, but uses YOLO26-derived output names in the first step.
+This mirrors Seeed's YOLO11 flow, but uses YOLO26-derived output names in the first step. If the test image path used for `model_transform` was `/workspace/test.jpg`, use the same path for `--test_input` here, and keep `--test_reference yolo26n_top_outputs.npz` unless you changed the first command's `--test_result`.
 
 ## Important caution
 
