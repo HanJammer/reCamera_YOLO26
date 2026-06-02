@@ -27,7 +27,7 @@ From the user's perspective it can still be one-click: install Docker Desktop, r
 ## Proposed user experience
 
 ```bash
-git clone ssh://git@172.16.69.190:222/HanJammer/reCamera_YOLO26.git
+git clone <this-repo-url>
 cd reCamera_YOLO26
 python -m venv .venv
 . .venv/bin/activate   # Windows: .venv\Scripts\activate
@@ -191,7 +191,7 @@ Current warning: YOLO26 segmentation has extra `one2one_cv4.*` and proto outputs
 
 - `yolo26n.onnx` from HuggingFace converted through `model_transform` after replacing YOLO11 `cv2/cv3` output names with YOLO26 `one2one_cv2/one2one_cv3` names.
 - `model_transform` produced `npz compare PASSED`.
-- `model_deploy` produced `yolo26n_cv181x_f16.cvimodel` around 6.9 MB.
+- `model_deploy` produced a CV181x F16 `.cvimodel` around 6.9 MB.
 
 ## Recommendation
 

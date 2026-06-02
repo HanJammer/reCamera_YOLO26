@@ -72,7 +72,7 @@ def summarize_json(obj: dict[str, Any]) -> dict[str, Any]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--host", default="10.21.37.9")
+    ap.add_argument("--host", required=True, help="reCamera host/IP, e.g. 192.168.1.50")
     ap.add_argument("--port", type=int, default=8090)
     ap.add_argument("--frames", type=int, default=3)
     ap.add_argument("--timeout", type=float, default=8.0)

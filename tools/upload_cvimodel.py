@@ -66,7 +66,7 @@ def post_chunked(base: str, model: pathlib.Path, info: dict[str, Any], headers: 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Upload .cvimodel to reCamera /api/deviceMgr/uploadModel")
     ap.add_argument("model", type=pathlib.Path, help="Path to .cvimodel")
-    ap.add_argument("--host", default="10.21.37.9", help="reCamera host/IP")
+    ap.add_argument("--host", required=True, help="reCamera host/IP, e.g. 192.168.1.50")
     ap.add_argument("--model-name", default=None, help="Display model name; default is file stem")
     ap.add_argument("--model-id", default="0")
     ap.add_argument("--classes", type=pathlib.Path, help="Class list text file, one class per line; default data/coco80.txt")

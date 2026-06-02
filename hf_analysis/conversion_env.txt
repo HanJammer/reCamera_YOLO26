@@ -1,2 +1,0 @@
-== conversion tool availability on BORG9 node ==
-tpu_mlir import: no: No module named 'tpu_mlir'
