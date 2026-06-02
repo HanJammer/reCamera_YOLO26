@@ -103,13 +103,13 @@ tpu_mlir[all]==1.7
 git clone <this-repo-url>
 cd reCamera_YOLO26
 
-python -m venv .venv-app
+python -m venv .venv
 
 # Linux/macOS:
-. .venv-app/bin/activate
+. .venv/bin/activate
 
 # Windows PowerShell:
-# .venv-app\Scripts\Activate.ps1
+# .venv\Scripts\Activate.ps1
 
 pip install -r requirements-app.txt
 python -m recamera_converter_app

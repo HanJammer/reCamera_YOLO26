@@ -18,7 +18,6 @@ __pycache__/
 
 device_backups/
 jobs/
-.venv-app/
 hf_analysis/*.txt
 !hf_analysis/yolo26n.inspect.txt
 !hf_analysis/yolo26n.transform_cmd.txt
