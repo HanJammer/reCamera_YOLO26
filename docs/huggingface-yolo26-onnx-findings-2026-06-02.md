@@ -104,3 +104,18 @@ The detection branch has the same `one2one_cv2`/`one2one_cv3` tensors as detecti
 ## Deployment caution
 
 Do not overwrite `/userdata/Models/model.cvimodel` on the reCamera until a cvimodel has been converted and its runtime metadata/postprocessing compatibility has been verified. Active factory runtime is YOLO11n-based and may not understand a YOLO26 pre-head output layout without matching postprocess support.
+
+
+## First on-device YOLO26n F16 result
+
+HanJammer uploaded the generated `yolo26n_cv181x_f16.cvimodel` through reCamera API/Node-RED model upload. The active device model was verified as:
+
+- `/userdata/Models/model.cvimodel` size: about 6.7 MiB
+- `/userdata/Models/model.json` model name: `YOLO26n Detection F16`
+- classes: COCO80 list
+- WebSocket `8090/tcp`: open
+- WebSocket frames: `code: 0`, `data.boxes` populated with detections and JPEG preview image
+
+Therefore the first local YOLO26n detection F16 conversion is confirmed to load and emit detections on reCamera.
+
+Caveat: an intermediate upload left metadata inconsistent (`YOLO11n Segment` metadata with YOLO26 model file). Re-uploading via `tools/upload_cvimodel.py` fixed `model.json` and preserved the 6.9 MB model file.

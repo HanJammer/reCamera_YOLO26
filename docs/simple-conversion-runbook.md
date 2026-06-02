@@ -187,3 +187,13 @@ The current camera runtime is proven to load YOLO11n models. YOLO26 conversion m
 - `yolo26n.onnx` from HuggingFace has valid YOLO26 internal tensors.
 - Correct detection output names were derived and saved in `hf_analysis/yolo26n.transform_cmd.txt`.
 - BORG9 node cannot run TPU-MLIR because it lacks `model_transform`, `model_deploy`, `tpu_mlir`, and Docker.
+
+## Verified on-device result
+
+`yolo26n_cv181x_f16.cvimodel` was uploaded to reCamera and verified on-device:
+
+- `getModelInfo` returned `YOLO26n Detection F16` with COCO80 classes.
+- `/userdata/Models/model.cvimodel` was about 6.7 MiB.
+- WebSocket `8090` returned detection boxes.
+
+This confirms the local conversion path works for YOLO26n detection F16.
