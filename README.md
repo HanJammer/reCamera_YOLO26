@@ -196,6 +196,15 @@ The helper sends:
 - `model_info=<json>`
 - COCO80 classes from `data/coco80.txt`
 
+
+## COCO80 comma-separated classes
+
+Copy this into the Node-RED model node `classes` field for COCO detection models:
+
+```text
+person, bicycle, car, motorcycle, airplane, bus, train, truck, boat, traffic light, fire hydrant, stop sign, parking meter, bench, bird, cat, dog, horse, sheep, cow, elephant, bear, zebra, giraffe, backpack, umbrella, handbag, tie, suitcase, frisbee, skis, snowboard, sports ball, kite, baseball bat, baseball glove, skateboard, surfboard, tennis racket, bottle, wine glass, cup, fork, knife, spoon, bowl, banana, apple, sandwich, orange, broccoli, carrot, hot dog, pizza, donut, cake, chair, couch, potted plant, bed, dining table, toilet, tv, laptop, mouse, remote, keyboard, cell phone, microwave, oven, toaster, sink, refrigerator, book, clock, vase, scissors, teddy bear, hair drier, toothbrush
+```
+
 ## Known issues and workarounds
 
 
@@ -212,15 +221,19 @@ Recommended after every model change:
 3. press **Deploy** in Node-RED,
 4. probe WebSocket `8090` or verify the preview.
 
-### UI upload resets classes
+### Node-RED `classes` field populates `model.json`
 
-Uploading through the firmware UI or Node-RED model node can produce:
+The `classes` field in the Node-RED **model** node is the source used to populate `model.json`. It expects class names listed as comma-separated text.
+
+If the Node-RED model node `classes` field is empty, uploading/deploying the model can produce:
 
 ```json
 {"model_id":"0","model_name":"yolo26n_cv181x_f16.cvimodel","classes":[""]}
 ```
 
-Workaround: re-upload with `tools/upload_cvimodel.py`, which sends explicit `model_info` with COCO80 classes.
+For COCO detection models, fill the model node `classes` field with the COCO80 class list, comma-separated, then press **Deploy**.
+
+Alternative/workaround: re-upload with `tools/upload_cvimodel.py`, which sends explicit `model_info` with COCO80 classes.
 
 ### Bounding boxes can look unchanged
 
