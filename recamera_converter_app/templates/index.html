@@ -12,7 +12,8 @@
     <p class="lead">Upload a YOLO detection ONNX and a test image. The tool derives YOLO11/YOLO26 output names, runs TPU-MLIR in Docker, and returns a reCamera-ready <code>.cvimodel</code> + <code>model.json</code>.</p>
     <section class="warning">
       <strong>v1 scope:</strong> detection models only, CV181x target, F16 precision. Segmentation/pose/classification are not supported yet.<br />
-      <strong>Backend:</strong> {{ docker_hint }} Uses <code>sophgo/tpuc_dev:v3.1</code>.
+      <strong>Backend:</strong> {{ docker_hint }} Uses <code>{{ docker_image }}</code>.<br />
+      {% if detected_docker %}<strong>Detected Docker CLI:</strong> <code>{{ detected_docker }}</code>{% else %}<strong>Docker CLI:</strong> not detected in this Python process. If Docker Desktop is installed, paste the path to <code>docker.exe</code> below.{% endif %}
     </section>
     <form action="/convert" method="post" enctype="multipart/form-data">
       <label>Model name
@@ -23,6 +24,9 @@
       </label>
       <label>Test image
         <input name="test_image" type="file" accept="image/*" required />
+      </label>
+      <label>Docker CLI path, optional
+        <input name="docker_cli" value="{{ detected_docker }}" placeholder="C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" />
       </label>
       <label>Classes, comma-separated
         <textarea name="classes_text" rows="7">{{ coco_csv }}</textarea>

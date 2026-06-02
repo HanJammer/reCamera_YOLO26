@@ -10,7 +10,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from .converter import JOBS_ROOT, convert
+from .converter import DOCKER_IMAGE, JOBS_ROOT, convert, find_docker_cli
 from .model_info import read_classes
 
 APP_DIR = Path(__file__).resolve().parent
@@ -31,8 +31,18 @@ class UploadStream:
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     coco_csv = ", ".join(read_classes())
+    detected_docker = find_docker_cli()
     docker_hint = "Docker Desktop/Engine must be installed and running."
-    return templates.TemplateResponse(request, "index.html", {"coco_csv": coco_csv, "docker_hint": docker_hint})
+    return templates.TemplateResponse(
+        request,
+        "index.html",
+        {
+            "coco_csv": coco_csv,
+            "docker_hint": docker_hint,
+            "detected_docker": detected_docker or "",
+            "docker_image": DOCKER_IMAGE,
+        },
+    )
 
 
 @app.post("/convert", response_class=HTMLResponse)
@@ -43,6 +53,7 @@ def convert_route(
     model_name: str = Form("yolo26n"),
     classes_text: str = Form(""),
     pull_image: str | None = Form(None),
+    docker_cli: str = Form(""),
 ):
     try:
         result = convert(
@@ -51,6 +62,7 @@ def convert_route(
             model_name=model_name.strip() or "model",
             classes_text=classes_text,
             allow_pull=bool(pull_image),
+            docker_cli=docker_cli.strip() or None,
         )
         return templates.TemplateResponse(request, "result.html", {"result": result, "ok": True})
     except Exception as exc:

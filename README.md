@@ -2,6 +2,10 @@
 
 A local, browser-based converter for building Seeed Studio reCamera-compatible `.cvimodel` files from YOLO ONNX models.
 
+The goal is to make custom YOLO-to-reCamera conversion approachable for users who do not want to hand-edit TPU-MLIR commands, tensor names, Docker paths, or Node-RED metadata.
+
+> Status: early V1/prototype. The detection path works for the supported YOLO11/YOLO26-style graphs, but the project is still evolving.
+
 The first supported workflow is:
 
 ```text
@@ -36,6 +40,8 @@ This project inspects the uploaded ONNX, derives the correct detection head outp
 - Upload ONNX + test image in a browser.
 - Auto-derive YOLO11/YOLO26-style detection output names.
 - Run Sophgo TPU-MLIR inside Docker.
+- Detect common Docker CLI locations and allow a manual Docker CLI path in the WebUI.
+- Use `sophgo/tpuc_dev:v3.4` by default, with `TPUC_DOCKER_IMAGE` override for future Sophgo tag changes.
 - Generate:
   - `.cvimodel`,
   - `model.json`,
@@ -44,6 +50,18 @@ This project inspects the uploaded ONNX, derives the correct detection head outp
   - `conversion.log`,
   - ZIP bundle.
 - Includes COCO80 class list for Node-RED/reCamera metadata.
+
+## Project direction
+
+This repository is meant to become a practical WebUI around the reCamera conversion workflow:
+
+1. upload/export a YOLO ONNX model,
+2. inspect the ONNX graph,
+3. derive the correct output tensor names where possible,
+4. run TPU-MLIR in a reproducible container,
+5. return a ready-to-upload `.cvimodel` bundle with `model.json`, logs, and the generated commands.
+
+The first target is detection because it has the smallest deployment/post-processing contract. Segmentation, pose, classification, quantization presets, and direct reCamera deployment are candidates for later versions.
 
 ## Current limitations
 
@@ -65,11 +83,13 @@ YOLO26 segmentation is **not** solved by the detection path; segmentation models
 - Internet access for first Docker image pull
 - Enough disk space for intermediate ONNX/NPZ/MLIR artifacts
 
-The converter uses this Docker image:
+The converter uses this Docker image by default:
 
 ```text
-sophgo/tpuc_dev:v3.1
+sophgo/tpuc_dev:v3.4
 ```
+
+You can override the image with `TPUC_DOCKER_IMAGE` if Sophgo changes Docker Hub tags again.
 
 Inside the container it installs:
 
@@ -109,6 +129,38 @@ Then upload:
 
 The app returns a ZIP bundle with the converted model and metadata.
 
+
+### Docker Desktop installed, but app says "Docker CLI not found"
+
+Docker Desktop can be installed while the `docker` CLI is not visible in the `PATH` inherited by Python.
+
+Fix options:
+
+1. Restart your terminal after installing Docker Desktop.
+2. Start the app from a terminal where `docker version` works.
+3. Fill the **Docker CLI path** field in the WebUI.
+4. Or set an environment variable before starting the app:
+
+Windows PowerShell:
+
+```powershell
+$env:DOCKER_CLI="C:\Program Files\Docker\Docker\resources\bin\docker.exe"
+python -m recamera_converter_app
+```
+
+Linux/macOS:
+
+```bash
+export DOCKER_CLI=/usr/bin/docker
+python -m recamera_converter_app
+```
+
+Typical Docker Desktop CLI path on Windows:
+
+```text
+C:\Program Files\Docker\Docker\resources\bin\docker.exe
+```
+
 ## Manual conversion workflow
 
 If you do not want to use the WebUI, the underlying helper scripts can be used directly.
@@ -139,12 +191,12 @@ python tools/make_recamera_transform_cmd.py models/yolo26n.onnx \
 ### 4. Run TPU-MLIR in Docker
 
 ```bash
-docker pull sophgo/tpuc_dev:v3.1
+docker pull sophgo/tpuc_dev:v3.4
 
 docker run --privileged --rm -it \
   -v "$PWD:/workspace" \
   -w /workspace \
-  sophgo/tpuc_dev:v3.1 \
+  sophgo/tpuc_dev:v3.4 \
   bash
 ```
 

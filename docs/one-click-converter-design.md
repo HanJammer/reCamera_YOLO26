@@ -20,7 +20,8 @@ TPU-MLIR is a native compiler/toolchain, not just a Python package. The practica
 
 - Python web app for UX,
 - Docker Desktop / Docker Engine / WSL2 backend for the actual conversion,
-- Sophgo `sophgo/tpuc_dev:v3.1` image running `model_transform` and `model_deploy`.
+- Sophgo `sophgo/tpuc_dev:v3.4` image running `model_transform` and `model_deploy`.
+  The app can override this with `TPUC_DOCKER_IMAGE` because Docker Hub tags have changed before.
 
 From the user's perspective it can still be one-click: install Docker Desktop, run one Python command, upload ONNX, download CVI model.
 
@@ -109,7 +110,7 @@ Equivalent command:
 docker run --rm \
   -v "$JOB_DIR:/workspace" \
   -w /workspace \
-  sophgo/tpuc_dev:v3.1 \
+  sophgo/tpuc_dev:v3.4 \
   bash -lc '
     pip install "tpu_mlir[all]==1.7" &&
     mkdir -p /tmp/onnx_cvimodel_work &&

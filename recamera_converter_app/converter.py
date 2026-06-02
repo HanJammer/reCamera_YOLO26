@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shlex
 import shutil
 import subprocess
@@ -18,7 +19,7 @@ from .model_info import read_classes, write_model_info
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 JOBS_ROOT = REPO_ROOT / "jobs"
-DOCKER_IMAGE = "sophgo/tpuc_dev:v3.1"
+DOCKER_IMAGE = os.environ.get("TPUC_DOCKER_IMAGE", "sophgo/tpuc_dev:v3.4")
 
 Precision = Literal["F16"]
 Task = Literal["detection"]
@@ -72,8 +73,50 @@ def inspect_outputs(onnx_path: Path) -> list[str]:
     return outputs
 
 
-def docker_available() -> bool:
-    return shutil.which("docker") is not None
+def find_docker_cli(explicit_path: str | None = None) -> str | None:
+    """Find Docker CLI even when Docker Desktop is installed but not in PATH."""
+    candidates: list[str] = []
+    if explicit_path:
+        candidates.append(explicit_path)
+    env_path = os.environ.get("DOCKER_CLI") or os.environ.get("DOCKER_PATH")
+    if env_path:
+        candidates.append(env_path)
+
+    which = shutil.which("docker") or shutil.which("docker.exe")
+    if which:
+        candidates.append(which)
+
+    system = platform.system().lower()
+    if system == "windows":
+        program_files = [os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")]
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        for base in program_files:
+            if base:
+                candidates.append(str(Path(base) / "Docker" / "Docker" / "resources" / "bin" / "docker.exe"))
+        if local_app_data:
+            candidates.append(str(Path(local_app_data) / "Docker" / "resources" / "bin" / "docker.exe"))
+    elif system == "darwin":
+        candidates.extend([
+            "/Applications/Docker.app/Contents/Resources/bin/docker",
+            "/usr/local/bin/docker",
+            "/opt/homebrew/bin/docker",
+        ])
+    else:
+        candidates.extend(["/usr/bin/docker", "/usr/local/bin/docker", "/snap/bin/docker"])
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        path = Path(candidate).expanduser()
+        if path.exists() and path.is_file():
+            return str(path)
+        # shutil.which handles bare executable names in PATH.
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return None
 
 
 def run_checked(cmd: list[str], *, cwd: Path, result: ConvertResult) -> None:
@@ -141,6 +184,7 @@ def convert(
     precision: Precision = "F16",
     classes_text: str | None = None,
     allow_pull: bool = True,
+    docker_cli: str | None = None,
 ) -> ConvertResult:
     if task != "detection" or precision != "F16":
         raise RuntimeError("v1 supports detection/F16 only")
@@ -165,14 +209,20 @@ def convert(
     script = shell_script(model_name=model_name, output_names=outputs, test_image_name=image_name)
     (job_dir / "output" / "commands.sh").write_text(script + "\n", encoding="utf-8")
 
-    if not docker_available():
-        raise RuntimeError("Docker CLI not found. Install Docker Desktop/Engine or run generated commands.sh in TPU-MLIR manually.")
+    docker_bin = find_docker_cli(docker_cli)
+    if not docker_bin:
+        raise RuntimeError(
+            "Docker CLI not found. Docker Desktop may be installed but docker.exe is not visible to this Python process. "
+            "Set DOCKER_CLI/DOCKER_PATH or fill the Docker CLI path field, e.g. "
+            "C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe"
+        )
+    result.log(f"Using Docker CLI: {docker_bin}")
 
     if allow_pull:
-        run_checked(["docker", "pull", DOCKER_IMAGE], cwd=REPO_ROOT, result=result)
+        run_checked([docker_bin, "pull", DOCKER_IMAGE], cwd=REPO_ROOT, result=result)
 
     docker_cmd = [
-        "docker", "run", "--privileged", "--rm",
+        docker_bin, "run", "--privileged", "--rm",
         "-v", f"{job_dir}:/workspace",
         "-w", "/workspace",
         DOCKER_IMAGE,
