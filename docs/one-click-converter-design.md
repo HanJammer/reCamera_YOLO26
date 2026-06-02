@@ -185,7 +185,7 @@ Current warning: YOLO26 segmentation has extra `one2one_cv4.*` and proto outputs
 - F16 model may run but be slower/larger than expected.
 - INT8 may require mixed precision if head accuracy degrades.
 - Firmware Model Conversion panel uses cloud/task APIs and may not match local TPU-MLIR behavior.
-- Direct camera upload may need auth/CSRF/session headers depending on firmware state.
+- Direct camera upload may need auth/CSRF/session headers depending on firmware state. The firmware Model Conversion tab itself is not sufficient for YOLO26 today; it accepts ONNX and starts the broken converter path. Locally converted cvimodels should use `/api/deviceMgr/uploadModel`.
 
 ## Current validated evidence
 

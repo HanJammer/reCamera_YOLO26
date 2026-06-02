@@ -146,6 +146,27 @@ model_deploy \
 
 This mirrors Seeed's YOLO11 flow, but uses YOLO26-derived output names in the first step. If the test image path used for `model_transform` was `/workspace/test.jpg`, use the same path for `--test_input` here, and keep `--test_reference yolo26n_top_outputs.npz` unless you changed the first command's `--test_result`.
 
+
+## Upload already converted cvimodel
+
+The firmware **Model Conversion** tab uploads `.onnx` and starts a cloud/firmware conversion task. This is the path that failed for YOLO26 because the converter used YOLO11-style output tensor names.
+
+For the locally converted `.cvimodel`, use the firmware model upload endpoint instead. This repo includes a helper:
+
+```bash
+python tools/upload_cvimodel.py yolo26n_cv181x_f16.cvimodel   --host 10.21.37.9   --model-name "YOLO26n Detection F16"
+```
+
+The helper sends `model_file` plus `model_info` to:
+
+```text
+/api/deviceMgr/uploadModel
+```
+
+It defaults to COCO80 classes from `data/coco80.txt` and uses chunked upload like the web UI.
+
+Use `--dry-run` first if you want to inspect the metadata without changing the device.
+
 ## Important caution
 
 Do not overwrite the live reCamera model yet.

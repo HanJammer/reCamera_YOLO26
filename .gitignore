@@ -15,3 +15,5 @@ device_snapshot/
 # Python
 __pycache__/
 .venv/
+
+device_backups/
