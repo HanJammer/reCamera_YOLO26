@@ -9,10 +9,11 @@
 <body>
   <main>
     <h1>reCamera ONNX → CVI Model Converter</h1>
-    <p class="lead">Upload a YOLO detection ONNX and a test image. The tool derives YOLO11/YOLO26 output names, runs TPU-MLIR in Docker, and returns a reCamera-ready <code>.cvimodel</code> + <code>model.json</code>.</p>
+    <p class="lead">Upload a YOLO detection ONNX and optionally replace the bundled test image. The tool derives YOLO11/YOLO26 output names, runs TPU-MLIR in Docker, and returns a reCamera-ready <code>.cvimodel</code> + <code>model.json</code>.</p>
     <section class="warning">
       <strong>v1 scope:</strong> detection models only, CV181x target, F16 precision. Segmentation/pose/classification are not supported yet.<br />
       <strong>Backend:</strong> {{ docker_hint }} Uses <code>{{ docker_image }}</code>.<br />
+      <strong>First run:</strong> pulling the Docker image can take several minutes. The job page now shows live status/logs; do not click Convert again unless you want a second job.<br />
       {% if detected_docker %}<strong>Detected Docker CLI:</strong> <code>{{ detected_docker }}</code>{% else %}<strong>Docker CLI:</strong> not detected in this Python process. If Docker Desktop is installed, paste the path to <code>docker.exe</code> below.{% endif %}
     </section>
     <form action="/convert" method="post" enctype="multipart/form-data">
@@ -22,8 +23,17 @@
       <label>ONNX file
         <input name="onnx_file" type="file" accept=".onnx" required />
       </label>
-      <label>Test image
-        <input name="test_image" type="file" accept="image/*" required />
+      <section class="default-image">
+        <strong>Default test image:</strong>
+        {% if default_test_image %}
+          <img src="/static/test.jpg" alt="Default test image" />
+          <p>Bundled author-provided <code>test.jpg</code> will be used unless you choose another image below.</p>
+        {% else %}
+          <p>No bundled <code>test.jpg</code> found; choose a test image below.</p>
+        {% endif %}
+      </section>
+      <label>Optional replacement test image
+        <input name="test_image" type="file" accept="image/*" />
       </label>
       <label>Docker CLI path, optional
         <input name="docker_cli" value="{{ detected_docker }}" placeholder="C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" />

@@ -124,8 +124,10 @@ http://127.0.0.1:7860
 Then upload:
 
 1. ONNX model,
-2. test image,
+2. optional replacement test image — if you leave it empty, the bundled author-provided `test.jpg` is used,
 3. optional comma-separated class names.
+
+The first run can take several minutes because Docker may need to pull the `sophgo/tpuc_dev` container image and install TPU-MLIR Python dependencies inside it. After you click **Convert**, the app opens a job page with live status, logs, output directory, and download links. Do not click **Convert** again unless you intentionally want to start another conversion job.
 
 The app returns a ZIP bundle with the converted model and metadata.
 

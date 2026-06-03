@@ -62,6 +62,40 @@ def save_upload(src, dst: Path) -> None:
         shutil.copyfileobj(src, fh)
 
 
+def write_job_status(job_dir: Path, *, status: str, message: str = "") -> None:
+    payload = {
+        "job_id": job_dir.name,
+        "status": status,
+        "message": message,
+        "job_dir": str(job_dir),
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    (job_dir / "logs" / "status.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def read_job_status(job_dir: Path) -> dict:
+    status_path = job_dir / "logs" / "status.json"
+    if status_path.exists():
+        try:
+            status = json.loads(status_path.read_text(encoding="utf-8"))
+        except Exception:
+            status = {"job_id": job_dir.name, "status": "unknown", "message": "Could not read status.json"}
+    else:
+        status = {"job_id": job_dir.name, "status": "unknown", "message": "No status.json yet"}
+
+    log_path = job_dir / "logs" / "conversion.log"
+    status["log"] = log_path.read_text(errors="replace")[-40000:] if log_path.exists() else ""
+
+    downloads = []
+    output_dir = job_dir / "output"
+    if output_dir.exists():
+        for path in sorted(output_dir.iterdir()):
+            if path.is_file() and path.suffix in {".cvimodel", ".json", ".zip", ".log", ".txt", ".sh"}:
+                downloads.append({"name": path.name, "url": f"/download/{job_dir.name}/{path.name}", "size": path.stat().st_size})
+    status["downloads"] = downloads
+    return status
+
+
 def inspect_outputs(onnx_path: Path) -> list[str]:
     model = onnx.load(onnx_path)
     outputs = derive_outputs(all_tensor_names(model))
@@ -112,7 +146,6 @@ def find_docker_cli(explicit_path: str | None = None) -> str | None:
         path = Path(candidate).expanduser()
         if path.exists() and path.is_file():
             return str(path)
-        # shutil.which handles bare executable names in PATH.
         resolved = shutil.which(candidate)
         if resolved:
             return resolved
@@ -121,16 +154,24 @@ def find_docker_cli(explicit_path: str | None = None) -> str | None:
 
 def run_checked(cmd: list[str], *, cwd: Path, result: ConvertResult) -> None:
     result.log("$ " + " ".join(shlex.quote(c) for c in cmd))
-    proc = subprocess.run(cmd, cwd=str(cwd), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    result.log(proc.stdout)
-    if proc.returncode != 0:
-        raise RuntimeError(f"Command failed with exit code {proc.returncode}")
+    proc = subprocess.Popen(
+        cmd,
+        cwd=str(cwd),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+    )
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        result.log(line.rstrip("\n"))
+    return_code = proc.wait()
+    if return_code != 0:
+        raise RuntimeError(f"Command failed with exit code {return_code}")
 
 
 def shell_script(*, model_name: str, output_names: list[str], test_image_name: str) -> str:
     output_arg = ",".join(output_names)
-    # The container sees job dir as /workspace. Keep outputs inside /workspace/output so
-    # the host can collect them without digging in container /tmp.
     return f"""
 set -euo pipefail
 python3 -m pip install -q 'tpu_mlir[all]==1.7'
@@ -175,10 +216,13 @@ def make_zip(result: ConvertResult) -> Path:
     return zip_path
 
 
-def convert(
+def convert_prepared(
     *,
-    onnx_file,
-    test_image,
+    job_id: str,
+    job_dir: Path,
+    onnx_path: Path,
+    image_path: Path,
+    image_name: str,
     model_name: str,
     task: Task = "detection",
     precision: Precision = "F16",
@@ -188,19 +232,13 @@ def convert(
 ) -> ConvertResult:
     if task != "detection" or precision != "F16":
         raise RuntimeError("v1 supports detection/F16 only")
-    job_id, job_dir = new_job_dir()
-    result = ConvertResult(job_id=job_id, job_dir=job_dir, status="created")
+    result = ConvertResult(job_id=job_id, job_dir=job_dir, status="running")
+    write_job_status(job_dir, status="running", message="Preparing conversion")
     result.log(f"Created {job_id}")
-
-    onnx_path = job_dir / "input" / "model.onnx"
-    image_suffix = Path(getattr(test_image, "filename", "test.jpg") or "test.jpg").suffix or ".jpg"
-    image_name = f"test{image_suffix}"
-    image_path = job_dir / "input" / image_name
-    save_upload(onnx_file, onnx_path)
-    save_upload(test_image, image_path)
     result.log(f"Saved ONNX: {onnx_path.stat().st_size} bytes")
-    result.log(f"Saved test image: {image_path.stat().st_size} bytes")
+    result.log(f"Using test image: {image_path.name} ({image_path.stat().st_size} bytes)")
 
+    write_job_status(job_dir, status="running", message="Inspecting ONNX outputs")
     outputs = inspect_outputs(onnx_path)
     result.output_names = outputs
     (job_dir / "output" / "output_names.txt").write_text("\n".join(outputs) + "\n", encoding="utf-8")
@@ -219,8 +257,10 @@ def convert(
     result.log(f"Using Docker CLI: {docker_bin}")
 
     if allow_pull:
+        write_job_status(job_dir, status="running", message=f"Pulling {DOCKER_IMAGE}; first run can take a while")
         run_checked([docker_bin, "pull", DOCKER_IMAGE], cwd=REPO_ROOT, result=result)
 
+    write_job_status(job_dir, status="running", message="Running TPU-MLIR conversion in Docker")
     docker_cmd = [
         docker_bin, "run", "--privileged", "--rm",
         "-v", f"{job_dir}:/workspace",
@@ -251,4 +291,38 @@ def convert(
     make_zip(result)
     result.status = "ok"
     result.log(f"Done: {result.zip_path}")
+    write_job_status(job_dir, status="ok", message=f"Done. Outputs are in {job_dir / 'output'}")
     return result
+
+
+def convert(
+    *,
+    onnx_file,
+    test_image,
+    model_name: str,
+    task: Task = "detection",
+    precision: Precision = "F16",
+    classes_text: str | None = None,
+    allow_pull: bool = True,
+    docker_cli: str | None = None,
+) -> ConvertResult:
+    job_id, job_dir = new_job_dir()
+    onnx_path = job_dir / "input" / "model.onnx"
+    image_suffix = Path(getattr(test_image, "filename", "test.jpg") or "test.jpg").suffix or ".jpg"
+    image_name = f"test{image_suffix}"
+    image_path = job_dir / "input" / image_name
+    save_upload(onnx_file, onnx_path)
+    save_upload(test_image, image_path)
+    return convert_prepared(
+        job_id=job_id,
+        job_dir=job_dir,
+        onnx_path=onnx_path,
+        image_path=image_path,
+        image_name=image_name,
+        model_name=model_name,
+        task=task,
+        precision=precision,
+        classes_text=classes_text,
+        allow_pull=allow_pull,
+        docker_cli=docker_cli,
+    )

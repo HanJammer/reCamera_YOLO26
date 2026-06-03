@@ -1,31 +1,70 @@
 from __future__ import annotations
 
-import io
+import shutil
+import threading
 import webbrowser
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import File, Form, Request, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI
 
-from .converter import DOCKER_IMAGE, JOBS_ROOT, convert, find_docker_cli
+from .converter import (
+    DOCKER_IMAGE,
+    JOBS_ROOT,
+    convert_prepared,
+    find_docker_cli,
+    new_job_dir,
+    read_job_status,
+    save_upload,
+    write_job_status,
+)
 from .model_info import read_classes
 
 APP_DIR = Path(__file__).resolve().parent
+DEFAULT_TEST_IMAGE = APP_DIR / "static" / "test.jpg"
 app = FastAPI(title="reCamera ONNX Converter")
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 
 
-class UploadStream:
-    def __init__(self, upload: UploadFile):
-        self.upload = upload
-        self.filename = upload.filename
+def _copy_upload(upload: UploadFile, dst: Path) -> None:
+    with dst.open("wb") as fh:
+        shutil.copyfileobj(upload.file, fh)
 
-    def read(self, n: int = -1) -> bytes:
-        return self.upload.file.read(n)
+
+def _run_job(
+    *,
+    job_id: str,
+    job_dir: Path,
+    onnx_path: Path,
+    image_path: Path,
+    image_name: str,
+    model_name: str,
+    classes_text: str,
+    allow_pull: bool,
+    docker_cli: str | None,
+) -> None:
+    try:
+        convert_prepared(
+            job_id=job_id,
+            job_dir=job_dir,
+            onnx_path=onnx_path,
+            image_path=image_path,
+            image_name=image_name,
+            model_name=model_name,
+            classes_text=classes_text,
+            allow_pull=allow_pull,
+            docker_cli=docker_cli,
+        )
+    except Exception as exc:
+        log_path = job_dir / "logs" / "conversion.log"
+        with log_path.open("a", encoding="utf-8") as fh:
+            fh.write(f"\nERROR: {exc}\n")
+        write_job_status(job_dir, status="failed", message=str(exc))
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -41,6 +80,7 @@ def index(request: Request):
             "docker_hint": docker_hint,
             "detected_docker": detected_docker or "",
             "docker_image": DOCKER_IMAGE,
+            "default_test_image": DEFAULT_TEST_IMAGE.exists(),
         },
     )
 
@@ -49,32 +89,61 @@ def index(request: Request):
 def convert_route(
     request: Request,
     onnx_file: UploadFile = File(...),
-    test_image: UploadFile = File(...),
+    test_image: UploadFile | None = File(None),
     model_name: str = Form("yolo26n"),
     classes_text: str = Form(""),
     pull_image: str | None = Form(None),
     docker_cli: str = Form(""),
 ):
-    try:
-        result = convert(
-            onnx_file=UploadStream(onnx_file),
-            test_image=UploadStream(test_image),
-            model_name=model_name.strip() or "model",
-            classes_text=classes_text,
-            allow_pull=bool(pull_image),
-            docker_cli=docker_cli.strip() or None,
-        )
-        return templates.TemplateResponse(request, "result.html", {"result": result, "ok": True})
-    except Exception as exc:
-        # Best-effort: show newest job log if one exists.
-        logs = str(exc)
-        if JOBS_ROOT.exists():
-            jobs = sorted([p for p in JOBS_ROOT.iterdir() if p.is_dir()], key=lambda p: p.stat().st_mtime, reverse=True)
-            if jobs:
-                log_path = jobs[0] / "logs" / "conversion.log"
-                if log_path.exists():
-                    logs += "\n\n--- latest conversion.log ---\n" + log_path.read_text(errors="replace")[-12000:]
-        return templates.TemplateResponse(request, "result.html", {"ok": False, "error": logs})
+    job_id, job_dir = new_job_dir()
+    write_job_status(job_dir, status="queued", message="Uploaded files; conversion thread will start now")
+
+    onnx_path = job_dir / "input" / "model.onnx"
+    _copy_upload(onnx_file, onnx_path)
+
+    if test_image and test_image.filename:
+        suffix = Path(test_image.filename).suffix or ".jpg"
+        image_name = f"test{suffix}"
+        image_path = job_dir / "input" / image_name
+        _copy_upload(test_image, image_path)
+    else:
+        image_name = "test.jpg"
+        image_path = job_dir / "input" / image_name
+        save_upload(DEFAULT_TEST_IMAGE.open("rb"), image_path)
+
+    worker = threading.Thread(
+        target=_run_job,
+        kwargs={
+            "job_id": job_id,
+            "job_dir": job_dir,
+            "onnx_path": onnx_path,
+            "image_path": image_path,
+            "image_name": image_name,
+            "model_name": model_name.strip() or "model",
+            "classes_text": classes_text,
+            "allow_pull": bool(pull_image),
+            "docker_cli": docker_cli.strip() or None,
+        },
+        daemon=True,
+    )
+    worker.start()
+    return templates.TemplateResponse(request, "job.html", {"job_id": job_id, "job_dir": str(job_dir)})
+
+
+@app.get("/job/{job_id}", response_class=HTMLResponse)
+def job_page(request: Request, job_id: str):
+    job_dir = JOBS_ROOT / job_id
+    if not job_dir.exists():
+        return HTMLResponse("Not found", status_code=404)
+    return templates.TemplateResponse(request, "job.html", {"job_id": job_id, "job_dir": str(job_dir)})
+
+
+@app.get("/api/job/{job_id}")
+def job_status(job_id: str):
+    job_dir = JOBS_ROOT / job_id
+    if not job_dir.exists():
+        return JSONResponse({"status": "missing", "message": "Job not found"}, status_code=404)
+    return read_job_status(job_dir)
 
 
 @app.get("/download/{job_id}/{filename}")

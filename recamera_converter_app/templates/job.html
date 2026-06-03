@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Conversion job {{ job_id }}</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main>
+    <h1>Conversion job <code>{{ job_id }}</code></h1>
+    <p>Job directory: <code>{{ job_dir }}</code></p>
+    <section id="status" class="warning">Loading job status...</section>
+    <section id="downloads"></section>
+    <h2>Live conversion log</h2>
+    <pre id="log">Waiting for logs...</pre>
+    <p><a href="/">Back</a></p>
+  </main>
+<script>
+const jobId = {{ job_id|tojson }};
+async function refresh() {
+  const res = await fetch(`/api/job/${jobId}`, {cache: 'no-store'});
+  const data = await res.json();
+  const status = document.getElementById('status');
+  status.innerHTML = `<strong>Status:</strong> ${data.status || 'unknown'}<br><strong>Message:</strong> ${data.message || ''}`;
+  document.getElementById('log').textContent = data.log || 'Waiting for logs...';
+  const downloads = document.getElementById('downloads');
+  if (data.downloads && data.downloads.length) {
+    downloads.innerHTML = '<h2>Downloads</h2><ul>' + data.downloads.map(d => `<li><a href="${d.url}">${d.name}</a> (${d.size} bytes)</li>`).join('') + '</ul>';
+  }
+  if (data.status !== 'ok' && data.status !== 'failed' && data.status !== 'missing') {
+    setTimeout(refresh, 2000);
+  }
+}
+refresh();
+</script>
+</body>
+</html>
