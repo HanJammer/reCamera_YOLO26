@@ -258,9 +258,48 @@ export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 echo "[reCamera converter] $(date -Is) container started"
 echo "[reCamera converter] precision mode: {precision}"
-echo "[reCamera converter] using TPU-MLIR already bundled in the Docker image; no pip install step"
+echo "[reCamera converter] probing TPU-MLIR environment"
+bootstrap_tpumlir() {{
+  for setup in \
+    /workspace/tpu-mlir/envsetup.sh \
+    /workspace/tpu_mlir/envsetup.sh \
+    /workspace/tpu-mlir*/envsetup.sh \
+    /workspace/tpu_mlir*/envsetup.sh \
+    /opt/tpu-mlir/envsetup.sh \
+    /opt/tpu_mlir/envsetup.sh \
+    /opt/tpu-mlir*/envsetup.sh \
+    /opt/tpu_mlir*/envsetup.sh \
+    /root/tpu-mlir/envsetup.sh \
+    /root/tpu_mlir/envsetup.sh \
+    /root/tpu-mlir*/envsetup.sh \
+    /root/tpu_mlir*/envsetup.sh; do
+    if [ -f "$setup" ]; then
+      echo "[reCamera converter] sourcing $setup"
+      # shellcheck disable=SC1090
+      source "$setup"
+      break
+    fi
+  done
+  if ! command -v model_transform >/dev/null 2>&1 || ! command -v model_deploy >/dev/null 2>&1; then
+    found_setup="$(find /opt /root /usr/local /workspace -maxdepth 5 -name envsetup.sh 2>/dev/null | head -1 || true)"
+    if [ -n "$found_setup" ]; then
+      echo "[reCamera converter] sourcing discovered $found_setup"
+      # shellcheck disable=SC1090
+      source "$found_setup"
+    fi
+  fi
+  if ! command -v model_transform >/dev/null 2>&1 || ! command -v model_deploy >/dev/null 2>&1; then
+    echo "[reCamera converter] TPU-MLIR commands not on PATH; installing isolated venv in /tmp/tpu_mlir_venv"
+    python3 -m venv /tmp/tpu_mlir_venv
+    # shellcheck disable=SC1091
+    source /tmp/tpu_mlir_venv/bin/activate
+    python3 -m pip install --no-input --progress-bar off 'tpu_mlir[all]==1.7'
+  fi
+}}
+bootstrap_tpumlir
 echo "[reCamera converter] model_transform: $(command -v model_transform || echo missing)"
 echo "[reCamera converter] model_deploy: $(command -v model_deploy || echo missing)"
+echo "[reCamera converter] run_calibration: $(command -v run_calibration || echo missing)"
 python3 -m pip show tpu_mlir 2>/dev/null | sed 's/^/[tpu_mlir package] /' || true
 run_tool() {{
   if command -v stdbuf >/dev/null 2>&1; then
