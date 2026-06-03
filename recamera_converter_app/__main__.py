@@ -21,6 +21,7 @@ from .converter import (
     read_job_status,
     save_upload,
     write_job_status,
+    finalize_outputs,
 )
 from .model_info import read_classes
 
@@ -64,7 +65,18 @@ def _run_job(
         log_path = job_dir / "logs" / "conversion.log"
         with log_path.open("a", encoding="utf-8") as fh:
             fh.write(f"\nERROR: {exc}\n")
-        write_job_status(job_dir, status="failed", message=str(exc))
+        try:
+            finalize_outputs(
+                job_id=job_id,
+                job_dir=job_dir,
+                model_name=model_name,
+                classes_text=classes_text,
+                status="ok",
+            )
+            with log_path.open("a", encoding="utf-8") as fh:
+                fh.write("Recovered outputs after a job exception.\n")
+        except Exception:
+            write_job_status(job_dir, status="failed", message=str(exc))
 
 
 @app.get("/", response_class=HTMLResponse)

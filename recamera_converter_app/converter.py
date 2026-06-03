@@ -158,6 +158,8 @@ def run_checked(cmd: list[str], *, cwd: Path, result: ConvertResult) -> None:
         cmd,
         cwd=str(cwd),
         text=True,
+        encoding="utf-8",
+        errors="replace",
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         bufsize=1,
@@ -186,6 +188,8 @@ def shell_script(*, model_name: str, output_names: list[str], test_image_name: s
 set -euo pipefail
 export PYTHONUNBUFFERED=1
 export PIP_DISABLE_PIP_VERSION_CHECK=1
+export LC_ALL=C.UTF-8
+export LANG=C.UTF-8
 echo "[reCamera converter] $(date -Is) container started"
 echo "[reCamera converter] using TPU-MLIR already bundled in the Docker image; no pip install step"
 echo "[reCamera converter] model_transform: $(command -v model_transform || echo missing)"
@@ -245,6 +249,36 @@ def make_zip(result: ConvertResult) -> Path:
     return zip_path
 
 
+def finalize_outputs(*, job_id: str, job_dir: Path, model_name: str, classes_text: str | None = None, status: str = "ok") -> ConvertResult:
+    result = ConvertResult(job_id=job_id, job_dir=job_dir, status=status)
+    cvimodel = job_dir / "output" / f"{model_name}_cv181x_f16.cvimodel"
+    if not cvimodel.exists():
+        raise RuntimeError(f"Expected output missing: {cvimodel}")
+    result.cvimodel = cvimodel
+
+    output_names_path = job_dir / "output" / "output_names.txt"
+    if output_names_path.exists():
+        result.output_names = [line.strip() for line in output_names_path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
+
+    classes = [c.strip() for c in (classes_text or "").replace("\n", ",").split(",") if c.strip()] or read_classes()
+    model_json = job_dir / "output" / "model.json"
+    write_model_info(
+        model_json,
+        model_name=model_name,
+        task="detection",
+        classes=classes,
+        description=f"{model_name} Detection F16 converted locally for Seeed reCamera CV181x",
+        author="reCamera ONNX converter",
+        model_file=cvimodel,
+    )
+    result.model_json = model_json
+    result.log(f"Wrote model.json with {len(classes)} classes")
+    make_zip(result)
+    result.log(f"Done: {result.zip_path}")
+    write_job_status(job_dir, status=status, message=f"Done. Outputs are in {job_dir / 'output'}")
+    return result
+
+
 def convert_prepared(
     *,
     job_id: str,
@@ -299,29 +333,7 @@ def convert_prepared(
     ]
     run_checked(docker_cmd, cwd=REPO_ROOT, result=result)
 
-    cvimodel = job_dir / "output" / f"{model_name}_cv181x_f16.cvimodel"
-    if not cvimodel.exists():
-        raise RuntimeError(f"Expected output missing: {cvimodel}")
-    result.cvimodel = cvimodel
-
-    classes = [c.strip() for c in (classes_text or "").replace("\n", ",").split(",") if c.strip()] or read_classes()
-    model_json = job_dir / "output" / "model.json"
-    write_model_info(
-        model_json,
-        model_name=model_name,
-        task=task,
-        classes=classes,
-        description=f"{model_name} Detection F16 converted locally for Seeed reCamera CV181x",
-        author="reCamera ONNX converter",
-        model_file=cvimodel,
-    )
-    result.model_json = model_json
-    result.log(f"Wrote model.json with {len(classes)} classes")
-    make_zip(result)
-    result.status = "ok"
-    result.log(f"Done: {result.zip_path}")
-    write_job_status(job_dir, status="ok", message=f"Done. Outputs are in {job_dir / 'output'}")
-    return result
+    return finalize_outputs(job_id=job_id, job_dir=job_dir, model_name=model_name, classes_text=classes_text, status="ok")
 
 
 def convert(
