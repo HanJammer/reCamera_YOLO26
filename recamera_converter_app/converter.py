@@ -174,31 +174,44 @@ def shell_script(*, model_name: str, output_names: list[str], test_image_name: s
     output_arg = ",".join(output_names)
     return f"""
 set -euo pipefail
-python3 -m pip install -q 'tpu_mlir[all]==1.7'
+export PYTHONUNBUFFERED=1
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+echo "[reCamera converter] $(date -Is) container started"
+echo "[reCamera converter] installing/checking TPU-MLIR dependencies; first run can be slow"
+python3 -m pip install --no-input --progress-bar off 'tpu_mlir[all]==1.7'
+echo "[reCamera converter] $(date -Is) TPU-MLIR dependency step finished"
+echo "[reCamera converter] model_transform: $(command -v model_transform || echo missing)"
+echo "[reCamera converter] model_deploy: $(command -v model_deploy || echo missing)"
 mkdir -p /tmp/onnx_cvimodel_work /workspace/output /workspace/logs
-model_transform \\
-  --model_name {shlex.quote(model_name)} \\
-  --model_def /workspace/input/model.onnx \\
-  --input_shapes '[[1,3,640,640]]' \\
-  --mean 0.0,0.0,0.0 \\
-  --scale 0.0039216,0.0039216,0.0039216 \\
-  --keep_aspect_ratio \\
-  --pixel_format rgb \\
-  --output_names {shlex.quote(output_arg)} \\
-  --test_input /workspace/input/{shlex.quote(test_image_name)} \\
-  --test_result /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \\
+echo "[reCamera converter] $(date -Is) starting model_transform"
+model_transform \
+  --model_name {shlex.quote(model_name)} \
+  --model_def /workspace/input/model.onnx \
+  --input_shapes '[[1,3,640,640]]' \
+  --mean 0.0,0.0,0.0 \
+  --scale 0.0039216,0.0039216,0.0039216 \
+  --keep_aspect_ratio \
+  --pixel_format rgb \
+  --output_names {shlex.quote(output_arg)} \
+  --test_input /workspace/input/{shlex.quote(test_image_name)} \
+  --test_result /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \
   --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir
-model_deploy \\
-  --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \\
-  --quant_input \\
-  --quantize F16 \\
-  --customization_format RGB_PACKED \\
-  --processor cv181x \\
-  --test_input /workspace/input/{shlex.quote(test_image_name)} \\
-  --test_reference /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \\
-  --fuse_preprocess \\
-  --tolerance 0.99,0.9 \\
+echo "[reCamera converter] $(date -Is) model_transform finished"
+echo "[reCamera converter] $(date -Is) starting model_deploy"
+model_deploy \
+  --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \
+  --quant_input \
+  --quantize F16 \
+  --customization_format RGB_PACKED \
+  --processor cv181x \
+  --test_input /workspace/input/{shlex.quote(test_image_name)} \
+  --test_reference /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \
+  --fuse_preprocess \
+  --tolerance 0.99,0.9 \
   --model /workspace/output/{shlex.quote(model_name)}_cv181x_f16.cvimodel
+echo "[reCamera converter] $(date -Is) model_deploy finished"
+echo "[reCamera converter] output directory:"
+ls -lh /workspace/output
 """.strip()
 
 
