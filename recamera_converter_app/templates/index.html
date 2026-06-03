@@ -9,9 +9,9 @@
 <body>
   <main>
     <h1>reCamera ONNX → CVI Model Converter</h1>
-    <p class="lead">Upload a YOLO detection ONNX and optionally replace the bundled test image. The tool derives YOLO11/YOLO26 output names, runs TPU-MLIR in Docker, and returns a reCamera-ready <code>.cvimodel</code> + <code>model.json</code>.</p>
+    <p class="lead">Upload a YOLO detection ONNX and optionally replace the bundled test image. The tool derives YOLO11/YOLO26 output names, runs TPU-MLIR INT8 conversion in Docker, and returns a reCamera-ready <code>.cvimodel</code> + <code>model.json</code>.</p>
     <section class="warning">
-      <strong>v1 scope:</strong> detection models only, CV181x target, F16 precision. Segmentation/pose/classification are not supported yet.<br />
+      <strong>v1 scope:</strong> detection models only, CV181x target, INT8 precision. Segmentation/pose/classification are not supported yet.<br />
       <strong>Backend:</strong> {{ docker_hint }} Uses <code>{{ docker_image }}</code>.<br />
       <strong>First run:</strong> pulling the Docker image can take several minutes. The job page now shows live status/logs; do not click Convert again unless you want a second job.<br />
       {% if detected_docker %}<strong>Detected Docker CLI:</strong> <code>{{ detected_docker }}</code>{% else %}<strong>Docker CLI:</strong> not detected in this Python process. If Docker Desktop is installed, paste the path to <code>docker.exe</code> below.{% endif %}
@@ -35,6 +35,10 @@
       <label>Optional replacement test image
         <input name="test_image" type="file" accept="image/*" />
       </label>
+      <label>Optional INT8 calibration images
+        <input name="calibration_images" type="file" accept="image/*" multiple />
+        <span class="hint">Recommended: representative images from your target scene. If empty, the default/test image is reused as a minimal calibration set.</span>
+      </label>
       <label>Docker CLI path, optional
         <input name="docker_cli" value="{{ detected_docker }}" placeholder="C:\\Program Files\\Docker\\Docker\\resources\\bin\\docker.exe" />
       </label>
@@ -47,7 +51,7 @@
     <section>
       <h2>What you get</h2>
       <ul>
-        <li><code>*_cv181x_f16.cvimodel</code></li>
+        <li><code>*_cv181x_int8.cvimodel</code></li>
         <li><code>model.json</code> with class names</li>
         <li><code>output_names.txt</code></li>
         <li><code>commands.sh</code> and conversion log</li>

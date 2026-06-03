@@ -9,7 +9,7 @@ The goal is to make custom YOLO-to-reCamera conversion approachable for users wh
 The first supported workflow is:
 
 ```text
-YOLO detection ONNX -> TPU-MLIR -> CV181x F16 .cvimodel + model.json
+YOLO detection ONNX -> TPU-MLIR -> CV181x INT8 .cvimodel + model.json
 ```
 
 It is intended for reCamera users who want to try newer YOLO exports, custom-trained detection models, or models whose ONNX graph does not match Seeed's stock conversion assumptions.
@@ -61,7 +61,7 @@ This repository is meant to become a practical WebUI around the reCamera convers
 4. run TPU-MLIR in a reproducible container,
 5. return a ready-to-upload `.cvimodel` bundle with `model.json`, logs, and the generated commands.
 
-The first target is detection because it has the smallest deployment/post-processing contract. Segmentation, pose, classification, quantization presets, and direct reCamera deployment are candidates for later versions.
+The first target is INT8 detection because reCamera/CV181x is memory-constrained and Seeed documents INT8 as the practical/required deployment precision. Segmentation, pose, classification, quantization presets, and direct reCamera deployment are candidates for later versions.
 
 ## Current limitations
 
@@ -69,7 +69,7 @@ V1 is intentionally narrow:
 
 - detection models only,
 - CV181x target only,
-- F16 precision only,
+- INT8 precision only,
 - Docker Desktop/Engine required,
 - no automatic camera deployment yet,
 - segmentation/pose/classification not supported yet.
@@ -121,7 +121,8 @@ Then upload:
 
 1. ONNX model,
 2. optional replacement test image — if you leave it empty, the bundled author-provided `test.jpg` is used,
-3. optional comma-separated class names.
+3. optional INT8 calibration images — representative images are recommended; if empty, the test image is reused as a minimal fallback,
+4. optional comma-separated class names.
 
 The first run can take several minutes because Docker may need to pull the `sophgo/tpuc_dev` container image and install TPU-MLIR Python dependencies inside it. After you click **Convert**, the app opens a job page with live status, logs, output directory, and download links. Do not click **Convert** again unless you intentionally want to start another conversion job.
 
@@ -218,14 +219,15 @@ Then deploy to `.cvimodel`, for example:
 model_deploy \
   --mlir /tmp/onnx_cvimodel_work/yolo26n.mlir \
   --quant_input \
-  --quantize F16 \
+  --quantize INT8 \
   --customization_format RGB_PACKED \
   --processor cv181x \
   --test_input /workspace/test.jpg \
   --test_reference /workspace/yolo26n_top_outputs.npz \
   --fuse_preprocess \
   --tolerance 0.99,0.9 \
-  --model /workspace/yolo26n_cv181x_f16.cvimodel
+  --calibration_table /workspace/yolo26n_calib_table \
+  --model /workspace/yolo26n_cv181x_int8.cvimodel
 ```
 
 ## Using the model in reCamera / Node-RED

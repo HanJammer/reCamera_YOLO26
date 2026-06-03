@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 JOBS_ROOT = REPO_ROOT / "jobs"
 DOCKER_IMAGE = os.environ.get("TPUC_DOCKER_IMAGE", "sophgo/tpuc_dev:v3.4")
 
-Precision = Literal["F16"]
+Precision = Literal["INT8"]
 Task = Literal["detection"]
 
 
@@ -173,6 +173,10 @@ def run_checked(cmd: list[str], *, cwd: Path, result: ConvertResult) -> None:
                 write_job_status(result.job_dir, status="running", message="Running model_transform")
             elif "model_transform finished" in clean:
                 write_job_status(result.job_dir, status="running", message="model_transform finished; starting model_deploy")
+            elif "starting run_calibration" in clean:
+                write_job_status(result.job_dir, status="running", message="Running INT8 calibration")
+            elif "run_calibration finished" in clean:
+                write_job_status(result.job_dir, status="running", message="Calibration finished; starting model_deploy")
             elif "starting model_deploy" in clean:
                 write_job_status(result.job_dir, status="running", message="Running model_deploy")
             elif "model_deploy finished" in clean:
@@ -182,8 +186,9 @@ def run_checked(cmd: list[str], *, cwd: Path, result: ConvertResult) -> None:
         raise RuntimeError(f"Command failed with exit code {return_code}")
 
 
-def shell_script(*, model_name: str, output_names: list[str], test_image_name: str) -> str:
+def shell_script(*, model_name: str, output_names: list[str], test_image_name: str, calibration_count: int) -> str:
     output_arg = ",".join(output_names)
+    calibration_count = max(1, calibration_count)
     return f"""
 set -euo pipefail
 export PYTHONUNBUFFERED=1
@@ -217,18 +222,27 @@ run_tool model_transform \
   --test_result /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \
   --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir
 echo "[reCamera converter] $(date -Is) model_transform finished"
+echo "[reCamera converter] $(date -Is) starting run_calibration with {calibration_count} image(s)"
+run_tool run_calibration \
+  /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \
+  --dataset /workspace/calibration \
+  --input_num {calibration_count} \
+  -o /workspace/output/{shlex.quote(model_name)}_calib_table
+echo "[reCamera converter] $(date -Is) run_calibration finished"
 echo "[reCamera converter] $(date -Is) starting model_deploy"
 run_tool model_deploy \
   --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \
   --quant_input \
-  --quantize F16 \
+  --quantize INT8 \
   --customization_format RGB_PACKED \
   --processor cv181x \
+  --calibration_table /workspace/output/{shlex.quote(model_name)}_calib_table \
   --test_input /workspace/input/{shlex.quote(test_image_name)} \
   --test_reference /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \
   --fuse_preprocess \
+  --aligned_input \
   --tolerance 0.99,0.9 \
-  --model /workspace/output/{shlex.quote(model_name)}_cv181x_f16.cvimodel
+  --model /workspace/output/{shlex.quote(model_name)}_cv181x_int8.cvimodel
 echo "[reCamera converter] $(date -Is) model_deploy finished"
 echo "[reCamera converter] output directory:"
 ls -lh /workspace/output
@@ -251,7 +265,7 @@ def make_zip(result: ConvertResult) -> Path:
 
 def finalize_outputs(*, job_id: str, job_dir: Path, model_name: str, classes_text: str | None = None, status: str = "ok") -> ConvertResult:
     result = ConvertResult(job_id=job_id, job_dir=job_dir, status=status)
-    cvimodel = job_dir / "output" / f"{model_name}_cv181x_f16.cvimodel"
+    cvimodel = job_dir / "output" / f"{model_name}_cv181x_int8.cvimodel"
     if not cvimodel.exists():
         raise RuntimeError(f"Expected output missing: {cvimodel}")
     result.cvimodel = cvimodel
@@ -267,7 +281,7 @@ def finalize_outputs(*, job_id: str, job_dir: Path, model_name: str, classes_tex
         model_name=model_name,
         task="detection",
         classes=classes,
-        description=f"{model_name} Detection F16 converted locally for Seeed reCamera CV181x",
+        description=f"{model_name} Detection INT8 converted locally for Seeed reCamera CV181x",
         author="reCamera ONNX converter",
         model_file=cvimodel,
     )
@@ -286,15 +300,16 @@ def convert_prepared(
     onnx_path: Path,
     image_path: Path,
     image_name: str,
-    model_name: str,
+    calibration_count: int = 1,
+    model_name: str = "model",
     task: Task = "detection",
-    precision: Precision = "F16",
+    precision: Precision = "INT8",
     classes_text: str | None = None,
     allow_pull: bool = True,
     docker_cli: str | None = None,
 ) -> ConvertResult:
-    if task != "detection" or precision != "F16":
-        raise RuntimeError("v1 supports detection/F16 only")
+    if task != "detection" or precision != "INT8":
+        raise RuntimeError("v1 supports detection/INT8 only")
     result = ConvertResult(job_id=job_id, job_dir=job_dir, status="running")
     write_job_status(job_dir, status="running", message="Preparing conversion")
     result.log(f"Created {job_id}")
@@ -307,7 +322,7 @@ def convert_prepared(
     (job_dir / "output" / "output_names.txt").write_text("\n".join(outputs) + "\n", encoding="utf-8")
     result.log("Derived output_names:\n" + "\n".join(outputs))
 
-    script = shell_script(model_name=model_name, output_names=outputs, test_image_name=image_name)
+    script = shell_script(model_name=model_name, output_names=outputs, test_image_name=image_name, calibration_count=calibration_count)
     (job_dir / "output" / "commands.sh").write_text(script + "\n", encoding="utf-8")
 
     docker_bin = find_docker_cli(docker_cli)
@@ -342,7 +357,7 @@ def convert(
     test_image,
     model_name: str,
     task: Task = "detection",
-    precision: Precision = "F16",
+    precision: Precision = "INT8",
     classes_text: str | None = None,
     allow_pull: bool = True,
     docker_cli: str | None = None,
@@ -354,12 +369,16 @@ def convert(
     image_path = job_dir / "input" / image_name
     save_upload(onnx_file, onnx_path)
     save_upload(test_image, image_path)
+    calibration_dir = job_dir / "calibration"
+    calibration_dir.mkdir()
+    shutil.copy2(image_path, calibration_dir / "calibration_0001.jpg")
     return convert_prepared(
         job_id=job_id,
         job_dir=job_dir,
         onnx_path=onnx_path,
         image_path=image_path,
         image_name=image_name,
+        calibration_count=1,
         model_name=model_name,
         task=task,
         precision=precision,

@@ -44,6 +44,7 @@ def _run_job(
     onnx_path: Path,
     image_path: Path,
     image_name: str,
+    calibration_count: int,
     model_name: str,
     classes_text: str,
     allow_pull: bool,
@@ -56,6 +57,7 @@ def _run_job(
             onnx_path=onnx_path,
             image_path=image_path,
             image_name=image_name,
+            calibration_count=calibration_count,
             model_name=model_name,
             classes_text=classes_text,
             allow_pull=allow_pull,
@@ -102,6 +104,7 @@ def convert_route(
     request: Request,
     onnx_file: UploadFile = File(...),
     test_image: UploadFile | None = File(None),
+    calibration_images: list[UploadFile] | None = File(None),
     model_name: str = Form("yolo26n"),
     classes_text: str = Form(""),
     pull_image: str | None = Form(None),
@@ -123,6 +126,20 @@ def convert_route(
         image_path = job_dir / "input" / image_name
         save_upload(DEFAULT_TEST_IMAGE.open("rb"), image_path)
 
+    calibration_dir = job_dir / "calibration"
+    calibration_dir.mkdir()
+    calibration_count = 0
+    if calibration_images:
+        for idx, upload in enumerate(calibration_images, start=1):
+            if not upload.filename:
+                continue
+            suffix = Path(upload.filename).suffix or ".jpg"
+            _copy_upload(upload, calibration_dir / f"calibration_{idx:04d}{suffix}")
+            calibration_count += 1
+    if calibration_count == 0:
+        shutil.copy2(image_path, calibration_dir / "calibration_0001.jpg")
+        calibration_count = 1
+
     worker = threading.Thread(
         target=_run_job,
         kwargs={
@@ -131,6 +148,7 @@ def convert_route(
             "onnx_path": onnx_path,
             "image_path": image_path,
             "image_name": image_name,
+            "calibration_count": calibration_count,
             "model_name": model_name.strip() or "model",
             "classes_text": classes_text,
             "allow_pull": bool(pull_image),

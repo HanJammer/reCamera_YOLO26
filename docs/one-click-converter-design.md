@@ -47,7 +47,7 @@ UI fields:
 - ONNX file upload
 - task type: detection / segmentation / pose / classify; initially detection only
 - target: `cv181x`
-- precision: F16 first, INT8 later
+- precision: INT8 first for reCamera/CV181x; F16 is not the default because it may exceed memory constraints
 - test/calibration image upload
 - model display name
 - class list upload/edit; default COCO 80 for detection
@@ -158,7 +158,7 @@ This needs careful rollback and should not be in first release.
 
 - YOLO11n detection: known Seeed path
 - YOLO26n detection: validated `model_transform` and `model_deploy` path
-- F16 precision first
+- INT8 precision first
 
 ### Phase 2: better packaging
 
@@ -167,11 +167,11 @@ This needs careful rollback and should not be in first release.
 - progress logs via Server-Sent Events or WebSocket
 - zip download with model, JSON, logs, commands
 
-### Phase 3: INT8
+### Phase 3: Calibration quality
 
 - calibration dataset upload
 - `run_calibration`
-- INT8 `model_deploy`
+- larger and more representative calibration sets
 
 ### Phase 4: segmentation/pose/classify
 
@@ -191,7 +191,7 @@ Current warning: YOLO26 segmentation has extra `one2one_cv4.*` and proto outputs
 
 - `yolo26n.onnx` from HuggingFace converted through `model_transform` after replacing YOLO11 `cv2/cv3` output names with YOLO26 `one2one_cv2/one2one_cv3` names.
 - `model_transform` produced `npz compare PASSED`.
-- `model_deploy` produced a CV181x F16 `.cvimodel` around 6.9 MB.
+- earlier F16 experiments produced a CV181x `.cvimodel`, but INT8 is now the default target for reCamera compatibility.
 
 ## Recommendation
 
