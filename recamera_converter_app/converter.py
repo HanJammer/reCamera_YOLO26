@@ -293,7 +293,7 @@ bootstrap_tpumlir() {{
     python3 -m venv /tmp/tpu_mlir_venv
     # shellcheck disable=SC1091
     source /tmp/tpu_mlir_venv/bin/activate
-    python3 -m pip install --no-input --progress-bar off 'tpu_mlir==1.7'
+    python3 -m pip install --no-input --progress-bar off 'tpu_mlir==1.7' 'flatbuffers>=23,<25'
   fi
 }}
 bootstrap_tpumlir
