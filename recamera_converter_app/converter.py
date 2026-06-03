@@ -289,11 +289,31 @@ bootstrap_tpumlir() {{
     fi
   fi
   if ! command -v model_transform >/dev/null 2>&1 || ! command -v model_deploy >/dev/null 2>&1; then
-    echo "[reCamera converter] TPU-MLIR commands not on PATH; installing isolated venv in /tmp/tpu_mlir_venv"
+    echo "[reCamera converter] TPU-MLIR commands not on PATH; preparing isolated venv in /tmp/tpu_mlir_venv"
     python3 -m venv /tmp/tpu_mlir_venv
     # shellcheck disable=SC1091
     source /tmp/tpu_mlir_venv/bin/activate
-    python3 -m pip install --no-input --progress-bar off 'tpu_mlir==1.7' 'flatbuffers>=23,<25'
+    python3 -m pip install --no-input --upgrade pip setuptools wheel
+    python3 -m pip install --no-input --progress-bar off \
+      'tpu_mlir==1.7' \
+      'flatbuffers>=23,<25' \
+      'onnx>=1.16,<2' \
+      'onnxsim>=0.4,<1' \
+      'numpy<2' \
+      'opencv-python-headless>=4.8,<5' \
+      'PyYAML>=6,<7' \
+      'requests>=2.31,<3' \
+      'tqdm>=4,<5' \
+      'transformers>=4,<5' \
+      'scipy>=1.10,<2' \
+      'scikit-image>=0.21,<1' \
+      'pycocotools>=2,<3' \
+      'torch==2.0.1' \
+      'torchvision==0.15.2'
+    python3 - <<'PYDEP'
+import flatbuffers, onnx, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
+print('[reCamera converter] fallback venv import check OK')
+PYDEP
   fi
 }}
 bootstrap_tpumlir
