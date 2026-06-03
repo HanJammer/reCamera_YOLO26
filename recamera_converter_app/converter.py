@@ -293,8 +293,10 @@ bootstrap_tpumlir() {{
     python3 -m venv /tmp/tpu_mlir_venv
     # shellcheck disable=SC1091
     source /tmp/tpu_mlir_venv/bin/activate
-    python3 -m pip install --no-input --upgrade pip setuptools wheel
+    python3 -m pip install --no-input --upgrade pip wheel
+    python3 -m pip install --no-input --upgrade --force-reinstall 'setuptools>=65,<81'
     python3 -m pip install --no-input --progress-bar off \
+      'setuptools>=65,<81' \
       'tpu_mlir==1.7' \
       'flatbuffers>=23,<25' \
       'onnx>=1.16,<2' \
@@ -311,7 +313,7 @@ bootstrap_tpumlir() {{
       'torch==2.0.1' \
       'torchvision==0.15.2'
     python3 - <<'PYDEP'
-import flatbuffers, onnx, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
+import pkg_resources, flatbuffers, onnx, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
 print('[reCamera converter] fallback venv import check OK')
 PYDEP
   fi
