@@ -9,7 +9,7 @@ h1 { color: #8ee88e; }
 form { display: grid; gap: 16px; margin: 24px 0; }
 label { display: grid; gap: 6px; font-weight: 650; }
 label.check { display: flex; align-items: center; gap: 10px; }
-input, textarea { background: #1b1b1b; color: #eee; border: 1px solid #555; border-radius: 8px; padding: 10px; font: inherit; }
+input, textarea, select { background: #1b1b1b; color: #eee; border: 1px solid #555; border-radius: 8px; padding: 10px; font: inherit; }
 button { background: #2c8f2c; color: white; border: none; border-radius: 10px; padding: 14px 18px; font-weight: 800; cursor: pointer; }
 button:hover { background: #35a735; }
 code, pre { background: #1b1b1b; border-radius: 6px; }

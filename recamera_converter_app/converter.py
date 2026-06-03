@@ -21,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 JOBS_ROOT = REPO_ROOT / "jobs"
 DOCKER_IMAGE = os.environ.get("TPUC_DOCKER_IMAGE", "sophgo/tpuc_dev:v3.4")
 
-Precision = Literal["INT8"]
+Precision = Literal["INT8", "F16", "BOTH"]
 Task = Literal["detection"]
 
 
@@ -107,6 +107,21 @@ def inspect_outputs(onnx_path: Path) -> list[str]:
     return outputs
 
 
+def normalize_precision(precision: str | None) -> Precision:
+    value = (precision or "INT8").strip().upper()
+    if value == "BOTH":
+        return "BOTH"
+    if value in {"INT8", "F16"}:
+        return value  # type: ignore[return-value]
+    raise RuntimeError(f"Unsupported precision mode: {precision!r}. Use INT8, F16, or BOTH.")
+
+
+def precision_modes(precision: Precision) -> list[Literal["INT8", "F16"]]:
+    if precision == "BOTH":
+        return ["INT8", "F16"]
+    return [precision]
+
+
 def find_docker_cli(explicit_path: str | None = None) -> str | None:
     """Find Docker CLI even when Docker Desktop is installed but not in PATH."""
     candidates: list[str] = []
@@ -172,13 +187,15 @@ def run_checked(cmd: list[str], *, cwd: Path, result: ConvertResult) -> None:
             if "starting model_transform" in clean:
                 write_job_status(result.job_dir, status="running", message="Running model_transform")
             elif "model_transform finished" in clean:
-                write_job_status(result.job_dir, status="running", message="model_transform finished; starting model_deploy")
+                write_job_status(result.job_dir, status="running", message="model_transform finished; continuing deploy flow")
             elif "starting run_calibration" in clean:
                 write_job_status(result.job_dir, status="running", message="Running INT8 calibration")
             elif "run_calibration finished" in clean:
-                write_job_status(result.job_dir, status="running", message="Calibration finished; starting model_deploy")
-            elif "starting model_deploy" in clean:
-                write_job_status(result.job_dir, status="running", message="Running model_deploy")
+                write_job_status(result.job_dir, status="running", message="Calibration finished; continuing deploy flow")
+            elif "starting INT8 model_deploy" in clean:
+                write_job_status(result.job_dir, status="running", message="Running INT8 model_deploy")
+            elif "starting F16 model_deploy" in clean:
+                write_job_status(result.job_dir, status="running", message="Running F16 model_deploy")
             elif "model_deploy finished" in clean:
                 write_job_status(result.job_dir, status="running", message="model_deploy finished; collecting outputs")
     return_code = proc.wait()
@@ -186,9 +203,53 @@ def run_checked(cmd: list[str], *, cwd: Path, result: ConvertResult) -> None:
         raise RuntimeError(f"Command failed with exit code {return_code}")
 
 
-def shell_script(*, model_name: str, output_names: list[str], test_image_name: str, calibration_count: int) -> str:
+def shell_script(*, model_name: str, output_names: list[str], test_image_name: str, calibration_count: int, precision: Precision) -> str:
     output_arg = ",".join(output_names)
     calibration_count = max(1, calibration_count)
+    deploy_parts: list[str] = []
+    modes = precision_modes(precision)
+    if "INT8" in modes:
+        deploy_parts.append(f"""
+echo "[reCamera converter] $(date -Is) starting run_calibration with {calibration_count} image(s)"
+run_tool run_calibration \\
+  /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \\
+  --dataset /workspace/calibration \\
+  --input_num {calibration_count} \\
+  -o /workspace/output/{shlex.quote(model_name)}_calib_table
+echo "[reCamera converter] $(date -Is) run_calibration finished"
+echo "[reCamera converter] $(date -Is) starting INT8 model_deploy"
+run_tool model_deploy \\
+  --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \\
+  --quant_input \\
+  --quantize INT8 \\
+  --customization_format RGB_PACKED \\
+  --processor cv181x \\
+  --calibration_table /workspace/output/{shlex.quote(model_name)}_calib_table \\
+  --test_input /workspace/input/{shlex.quote(test_image_name)} \\
+  --test_reference /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \\
+  --fuse_preprocess \\
+  --aligned_input \\
+  --tolerance 0.99,0.9 \\
+  --model /workspace/output/{shlex.quote(model_name)}_cv181x_int8.cvimodel
+echo "[reCamera converter] $(date -Is) INT8 model_deploy finished"
+""".strip())
+    if "F16" in modes:
+        deploy_parts.append(f"""
+echo "[reCamera converter] $(date -Is) starting F16 model_deploy"
+run_tool model_deploy \\
+  --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \\
+  --quant_input \\
+  --quantize F16 \\
+  --customization_format RGB_PACKED \\
+  --processor cv181x \\
+  --test_input /workspace/input/{shlex.quote(test_image_name)} \\
+  --test_reference /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \\
+  --fuse_preprocess \\
+  --tolerance 0.99,0.9 \\
+  --model /workspace/output/{shlex.quote(model_name)}_cv181x_f16.cvimodel
+echo "[reCamera converter] $(date -Is) F16 model_deploy finished"
+""".strip())
+    deploy_script = "\n".join(deploy_parts)
     return f"""
 set -euo pipefail
 export PYTHONUNBUFFERED=1
@@ -196,6 +257,7 @@ export PIP_DISABLE_PIP_VERSION_CHECK=1
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
 echo "[reCamera converter] $(date -Is) container started"
+echo "[reCamera converter] precision mode: {precision}"
 echo "[reCamera converter] using TPU-MLIR already bundled in the Docker image; no pip install step"
 echo "[reCamera converter] model_transform: $(command -v model_transform || echo missing)"
 echo "[reCamera converter] model_deploy: $(command -v model_deploy || echo missing)"
@@ -209,41 +271,20 @@ run_tool() {{
 }}
 mkdir -p /tmp/onnx_cvimodel_work /workspace/output /workspace/logs
 echo "[reCamera converter] $(date -Is) starting model_transform"
-run_tool model_transform \
-  --model_name {shlex.quote(model_name)} \
-  --model_def /workspace/input/model.onnx \
-  --input_shapes '[[1,3,640,640]]' \
-  --mean 0.0,0.0,0.0 \
-  --scale 0.0039216,0.0039216,0.0039216 \
-  --keep_aspect_ratio \
-  --pixel_format rgb \
-  --output_names {shlex.quote(output_arg)} \
-  --test_input /workspace/input/{shlex.quote(test_image_name)} \
-  --test_result /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \
+run_tool model_transform \\
+  --model_name {shlex.quote(model_name)} \\
+  --model_def /workspace/input/model.onnx \\
+  --input_shapes '[[1,3,640,640]]' \\
+  --mean 0.0,0.0,0.0 \\
+  --scale 0.0039216,0.0039216,0.0039216 \\
+  --keep_aspect_ratio \\
+  --pixel_format rgb \\
+  --output_names {shlex.quote(output_arg)} \\
+  --test_input /workspace/input/{shlex.quote(test_image_name)} \\
+  --test_result /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \\
   --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir
 echo "[reCamera converter] $(date -Is) model_transform finished"
-echo "[reCamera converter] $(date -Is) starting run_calibration with {calibration_count} image(s)"
-run_tool run_calibration \
-  /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \
-  --dataset /workspace/calibration \
-  --input_num {calibration_count} \
-  -o /workspace/output/{shlex.quote(model_name)}_calib_table
-echo "[reCamera converter] $(date -Is) run_calibration finished"
-echo "[reCamera converter] $(date -Is) starting model_deploy"
-run_tool model_deploy \
-  --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \
-  --quant_input \
-  --quantize INT8 \
-  --customization_format RGB_PACKED \
-  --processor cv181x \
-  --calibration_table /workspace/output/{shlex.quote(model_name)}_calib_table \
-  --test_input /workspace/input/{shlex.quote(test_image_name)} \
-  --test_reference /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \
-  --fuse_preprocess \
-  --aligned_input \
-  --tolerance 0.99,0.9 \
-  --model /workspace/output/{shlex.quote(model_name)}_cv181x_int8.cvimodel
-echo "[reCamera converter] $(date -Is) model_deploy finished"
+{deploy_script}
 echo "[reCamera converter] output directory:"
 ls -lh /workspace/output
 """.strip()
@@ -256,37 +297,44 @@ def make_zip(result: ConvertResult) -> Path:
     if log_path.exists():
         shutil.copy2(log_path, output_log)
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
-        for path in [result.cvimodel, result.model_json, output_log, result.job_dir / "output" / "commands.sh", result.job_dir / "output" / "output_names.txt"]:
-            if path and path.exists():
+        for path in sorted((result.job_dir / "output").iterdir()):
+            if path.is_file() and path.suffix in {".cvimodel", ".json", ".log", ".txt", ".sh"}:
                 zf.write(path, arcname=path.name)
     result.zip_path = zip_path
     return zip_path
 
 
-def finalize_outputs(*, job_id: str, job_dir: Path, model_name: str, classes_text: str | None = None, status: str = "ok") -> ConvertResult:
+def finalize_outputs(*, job_id: str, job_dir: Path, model_name: str, precision: Precision, classes_text: str | None = None, status: str = "ok") -> ConvertResult:
     result = ConvertResult(job_id=job_id, job_dir=job_dir, status=status)
-    cvimodel = job_dir / "output" / f"{model_name}_cv181x_int8.cvimodel"
-    if not cvimodel.exists():
-        raise RuntimeError(f"Expected output missing: {cvimodel}")
-    result.cvimodel = cvimodel
+    modes = precision_modes(precision)
+    cvimodels = [job_dir / "output" / f"{model_name}_cv181x_{mode.lower()}.cvimodel" for mode in modes]
+    missing = [str(path) for path in cvimodels if not path.exists()]
+    if missing:
+        raise RuntimeError("Expected output missing: " + ", ".join(missing))
+    result.cvimodel = cvimodels[0]
 
     output_names_path = job_dir / "output" / "output_names.txt"
     if output_names_path.exists():
         result.output_names = [line.strip() for line in output_names_path.read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
 
     classes = [c.strip() for c in (classes_text or "").replace("\n", ",").split(",") if c.strip()] or read_classes()
-    model_json = job_dir / "output" / "model.json"
-    write_model_info(
-        model_json,
-        model_name=model_name,
-        task="detection",
-        classes=classes,
-        description=f"{model_name} Detection INT8 converted locally for Seeed reCamera CV181x",
-        author="reCamera ONNX converter",
-        model_file=cvimodel,
-    )
-    result.model_json = model_json
-    result.log(f"Wrote model.json with {len(classes)} classes")
+    for mode, cvimodel in zip(modes, cvimodels):
+        model_json = job_dir / "output" / f"model_{mode.lower()}.json"
+        write_model_info(
+            model_json,
+            model_name=model_name,
+            task="detection",
+            classes=classes,
+            description=f"{model_name} Detection {mode} converted locally for Seeed reCamera CV181x",
+            author="reCamera ONNX converter",
+            model_file=cvimodel,
+        )
+        if mode == "INT8":
+            shutil.copy2(model_json, job_dir / "output" / "model.json")
+            result.model_json = job_dir / "output" / "model.json"
+    if result.model_json is None:
+        result.model_json = job_dir / "output" / "model_f16.json"
+    result.log(f"Wrote model metadata with {len(classes)} classes")
     make_zip(result)
     result.log(f"Done: {result.zip_path}")
     write_job_status(job_dir, status=status, message=f"Done. Outputs are in {job_dir / 'output'}")
@@ -308,11 +356,13 @@ def convert_prepared(
     allow_pull: bool = True,
     docker_cli: str | None = None,
 ) -> ConvertResult:
-    if task != "detection" or precision != "INT8":
-        raise RuntimeError("v1 supports detection/INT8 only")
+    precision = normalize_precision(precision)
+    if task != "detection":
+        raise RuntimeError("v1 supports detection only")
     result = ConvertResult(job_id=job_id, job_dir=job_dir, status="running")
     write_job_status(job_dir, status="running", message="Preparing conversion")
     result.log(f"Created {job_id}")
+    result.log(f"Precision mode: {precision}")
     result.log(f"Saved ONNX: {onnx_path.stat().st_size} bytes")
     result.log(f"Using test image: {image_path.name} ({image_path.stat().st_size} bytes)")
 
@@ -322,7 +372,7 @@ def convert_prepared(
     (job_dir / "output" / "output_names.txt").write_text("\n".join(outputs) + "\n", encoding="utf-8")
     result.log("Derived output_names:\n" + "\n".join(outputs))
 
-    script = shell_script(model_name=model_name, output_names=outputs, test_image_name=image_name, calibration_count=calibration_count)
+    script = shell_script(model_name=model_name, output_names=outputs, test_image_name=image_name, calibration_count=calibration_count, precision=precision)
     (job_dir / "output" / "commands.sh").write_text(script + "\n", encoding="utf-8")
 
     docker_bin = find_docker_cli(docker_cli)
@@ -348,7 +398,7 @@ def convert_prepared(
     ]
     run_checked(docker_cmd, cwd=REPO_ROOT, result=result)
 
-    return finalize_outputs(job_id=job_id, job_dir=job_dir, model_name=model_name, classes_text=classes_text, status="ok")
+    return finalize_outputs(job_id=job_id, job_dir=job_dir, model_name=model_name, precision=precision, classes_text=classes_text, status="ok")
 
 
 def convert(

@@ -47,7 +47,7 @@ UI fields:
 - ONNX file upload
 - task type: detection / segmentation / pose / classify; initially detection only
 - target: `cv181x`
-- precision: INT8 first for reCamera/CV181x; F16 is not the default because it may exceed memory constraints
+- precision: INT8 default for reCamera/CV181x, with optional F16 or Both output mode
 - test/calibration image upload
 - model display name
 - class list upload/edit; default COCO 80 for detection
@@ -158,7 +158,7 @@ This needs careful rollback and should not be in first release.
 
 - YOLO11n detection: known Seeed path
 - YOLO26n detection: validated `model_transform` and `model_deploy` path
-- INT8 precision first
+- INT8 default, optional F16/Both
 
 ### Phase 2: better packaging
 

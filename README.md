@@ -9,7 +9,7 @@ The goal is to make custom YOLO-to-reCamera conversion approachable for users wh
 The first supported workflow is:
 
 ```text
-YOLO detection ONNX -> TPU-MLIR -> CV181x INT8 .cvimodel + model.json
+YOLO detection ONNX -> TPU-MLIR -> CV181x INT8/F16 .cvimodel + model metadata
 ```
 
 It is intended for reCamera users who want to try newer YOLO exports, custom-trained detection models, or models whose ONNX graph does not match Seeed's stock conversion assumptions.
@@ -61,7 +61,7 @@ This repository is meant to become a practical WebUI around the reCamera convers
 4. run TPU-MLIR in a reproducible container,
 5. return a ready-to-upload `.cvimodel` bundle with `model.json`, logs, and the generated commands.
 
-The first target is INT8 detection because reCamera/CV181x is memory-constrained and Seeed documents INT8 as the practical/required deployment precision. Segmentation, pose, classification, quantization presets, and direct reCamera deployment are candidates for later versions.
+The first target is INT8 detection because reCamera/CV181x is memory-constrained and Seeed documents INT8 as the practical/required deployment precision. F16 remains available as an experimental comparison/debug output and `Both` generates both suffixes in one job. Segmentation, pose, classification, quantization presets, and direct reCamera deployment are candidates for later versions.
 
 ## Current limitations
 
@@ -69,7 +69,7 @@ V1 is intentionally narrow:
 
 - detection models only,
 - CV181x target only,
-- INT8 precision only,
+- INT8 precision by default; optional F16 or Both output mode,
 - Docker Desktop/Engine required,
 - no automatic camera deployment yet,
 - segmentation/pose/classification not supported yet.
@@ -120,13 +120,22 @@ http://127.0.0.1:7860
 Then upload:
 
 1. ONNX model,
-2. optional replacement test image — if you leave it empty, the bundled author-provided `test.jpg` is used,
-3. optional INT8 calibration images — representative images are recommended; if empty, the test image is reused as a minimal fallback,
-4. optional comma-separated class names.
+2. precision/output mode — `INT8` default/recommended for reCamera, `F16` experimental, or `Both`,
+3. optional replacement test image — if you leave it empty, the bundled author-provided `test.jpg` is used,
+4. optional INT8 calibration images — representative images are recommended; if empty, the test image is reused as a minimal fallback,
+5. optional comma-separated class names.
 
 The first run can take several minutes because Docker may need to pull the `sophgo/tpuc_dev` container image and install TPU-MLIR Python dependencies inside it. After you click **Convert**, the app opens a job page with live status, logs, output directory, and download links. Do not click **Convert** again unless you intentionally want to start another conversion job.
 
 The app returns a ZIP bundle with the converted model and metadata.
+
+### Precision/output mode
+
+- **INT8**: default and recommended for reCamera/CV181x deployment. Requires calibration images; if none are supplied, the app uses the selected/default test image as a minimal fallback.
+- **F16**: experimental/debug mode. It can be useful for comparison but may be too large for reCamera memory constraints.
+- **Both**: runs one `model_transform`, then emits both `*_cv181x_int8.cvimodel` and `*_cv181x_f16.cvimodel`.
+
+When INT8 is generated, the app also writes `model.json` as an alias for `model_int8.json`, because that is the normal reCamera/Node-RED metadata name.
 
 
 ### Docker Desktop installed, but app says "Docker CLI not found"

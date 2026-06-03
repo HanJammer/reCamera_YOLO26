@@ -9,9 +9,9 @@
 <body>
   <main>
     <h1>reCamera ONNX → CVI Model Converter</h1>
-    <p class="lead">Upload a YOLO detection ONNX and optionally replace the bundled test image. The tool derives YOLO11/YOLO26 output names, runs TPU-MLIR INT8 conversion in Docker, and returns a reCamera-ready <code>.cvimodel</code> + <code>model.json</code>.</p>
+    <p class="lead">Upload a YOLO detection ONNX and optionally replace the bundled test image. The tool derives YOLO11/YOLO26 output names, runs TPU-MLIR conversion in Docker, and returns a reCamera-ready <code>.cvimodel</code> + <code>model.json</code>.</p>
     <section class="warning">
-      <strong>v1 scope:</strong> detection models only, CV181x target, INT8 precision. Segmentation/pose/classification are not supported yet.<br />
+      <strong>v1 scope:</strong> detection models only, CV181x target. INT8 is the default/recommended reCamera mode; F16 is available for experiments. Segmentation/pose/classification are not supported yet.<br />
       <strong>Backend:</strong> {{ docker_hint }} Uses <code>{{ docker_image }}</code>.<br />
       <strong>First run:</strong> pulling the Docker image can take several minutes. The job page now shows live status/logs; do not click Convert again unless you want a second job.<br />
       {% if detected_docker %}<strong>Detected Docker CLI:</strong> <code>{{ detected_docker }}</code>{% else %}<strong>Docker CLI:</strong> not detected in this Python process. If Docker Desktop is installed, paste the path to <code>docker.exe</code> below.{% endif %}
@@ -22,6 +22,14 @@
       </label>
       <label>ONNX file
         <input name="onnx_file" type="file" accept=".onnx" required />
+      </label>
+      <label>Precision/output mode
+        <select name="precision">
+          <option value="INT8" selected>INT8 — default/recommended for reCamera</option>
+          <option value="F16">F16 — experimental, larger, may not fit device memory</option>
+          <option value="BOTH">Both — generate INT8 and F16 outputs</option>
+        </select>
+        <span class="hint">Seeed documents INT8 as the practical/reCamera target for CV181x memory constraints. F16 is kept for comparison/debugging.</span>
       </label>
       <section class="default-image">
         <strong>Default test image:</strong>
@@ -51,8 +59,8 @@
     <section>
       <h2>What you get</h2>
       <ul>
-        <li><code>*_cv181x_int8.cvimodel</code></li>
-        <li><code>model.json</code> with class names</li>
+        <li><code>*_cv181x_int8.cvimodel</code> and/or <code>*_cv181x_f16.cvimodel</code></li>
+        <li><code>model_int8.json</code>/<code>model_f16.json</code> with class names; <code>model.json</code> aliases INT8 when present</li>
         <li><code>output_names.txt</code></li>
         <li><code>commands.sh</code> and conversion log</li>
         <li>ZIP bundle for download</li>
