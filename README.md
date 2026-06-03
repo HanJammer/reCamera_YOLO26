@@ -91,7 +91,7 @@ sophgo/tpuc_dev:v3.4
 
 You can override the image with `TPUC_DOCKER_IMAGE` if Sophgo changes Docker Hub tags again.
 
-The image already contains TPU-MLIR. The WebUI does **not** run `pip install tpu_mlir[all]` inside the container, because reinstalling it in the Sophgo image can downgrade/conflict dependencies and slow down conversion.
+The image normally contains TPU-MLIR. The WebUI first tries to source the image's TPU-MLIR environment. If the CLI tools are still missing, it installs base `tpu_mlir==1.7` into an isolated `/tmp/tpu_mlir_venv` fallback. It does **not** install `tpu_mlir[all]`, because that extra can request unavailable legacy dependencies such as `paddlepaddle==2.5.0`.
 
 ## Quick start: WebUI
 
