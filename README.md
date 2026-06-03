@@ -91,11 +91,7 @@ sophgo/tpuc_dev:v3.4
 
 You can override the image with `TPUC_DOCKER_IMAGE` if Sophgo changes Docker Hub tags again.
 
-Inside the container it installs:
-
-```text
-tpu_mlir[all]==1.7
-```
+The image already contains TPU-MLIR. The WebUI does **not** run `pip install tpu_mlir[all]` inside the container, because reinstalling it in the Sophgo image can downgrade/conflict dependencies and slow down conversion.
 
 ## Quick start: WebUI
 
@@ -205,9 +201,10 @@ docker run --privileged --rm -it \
 Inside the container:
 
 ```bash
-pip install 'tpu_mlir[all]==1.7'
 mkdir -p /tmp/onnx_cvimodel_work
 ```
+
+The Sophgo image already includes TPU-MLIR, so do not reinstall `tpu_mlir[all]` unless you are intentionally debugging package versions.
 
 Run the generated `model_transform` command. A successful first stage should end with something like:
 

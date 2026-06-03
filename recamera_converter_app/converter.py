@@ -164,7 +164,17 @@ def run_checked(cmd: list[str], *, cwd: Path, result: ConvertResult) -> None:
     )
     assert proc.stdout is not None
     for line in proc.stdout:
-        result.log(line.rstrip("\n"))
+        clean = line.rstrip("\n")
+        result.log(clean)
+        if "[reCamera converter]" in clean:
+            if "starting model_transform" in clean:
+                write_job_status(result.job_dir, status="running", message="Running model_transform")
+            elif "model_transform finished" in clean:
+                write_job_status(result.job_dir, status="running", message="model_transform finished; starting model_deploy")
+            elif "starting model_deploy" in clean:
+                write_job_status(result.job_dir, status="running", message="Running model_deploy")
+            elif "model_deploy finished" in clean:
+                write_job_status(result.job_dir, status="running", message="model_deploy finished; collecting outputs")
     return_code = proc.wait()
     if return_code != 0:
         raise RuntimeError(f"Command failed with exit code {return_code}")
@@ -177,14 +187,20 @@ set -euo pipefail
 export PYTHONUNBUFFERED=1
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 echo "[reCamera converter] $(date -Is) container started"
-echo "[reCamera converter] installing/checking TPU-MLIR dependencies; first run can be slow"
-python3 -m pip install --no-input --progress-bar off 'tpu_mlir[all]==1.7'
-echo "[reCamera converter] $(date -Is) TPU-MLIR dependency step finished"
+echo "[reCamera converter] using TPU-MLIR already bundled in the Docker image; no pip install step"
 echo "[reCamera converter] model_transform: $(command -v model_transform || echo missing)"
 echo "[reCamera converter] model_deploy: $(command -v model_deploy || echo missing)"
+python3 -m pip show tpu_mlir 2>/dev/null | sed 's/^/[tpu_mlir package] /' || true
+run_tool() {{
+  if command -v stdbuf >/dev/null 2>&1; then
+    stdbuf -oL -eL "$@"
+  else
+    "$@"
+  fi
+}}
 mkdir -p /tmp/onnx_cvimodel_work /workspace/output /workspace/logs
 echo "[reCamera converter] $(date -Is) starting model_transform"
-model_transform \
+run_tool model_transform \
   --model_name {shlex.quote(model_name)} \
   --model_def /workspace/input/model.onnx \
   --input_shapes '[[1,3,640,640]]' \
@@ -198,7 +214,7 @@ model_transform \
   --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir
 echo "[reCamera converter] $(date -Is) model_transform finished"
 echo "[reCamera converter] $(date -Is) starting model_deploy"
-model_deploy \
+run_tool model_deploy \
   --mlir /tmp/onnx_cvimodel_work/{shlex.quote(model_name)}.mlir \
   --quant_input \
   --quantize F16 \

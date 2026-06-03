@@ -112,7 +112,6 @@ docker run --rm \
   -w /workspace \
   sophgo/tpuc_dev:v3.4 \
   bash -lc '
-    pip install "tpu_mlir[all]==1.7" &&
     mkdir -p /tmp/onnx_cvimodel_work &&
     model_transform ... &&
     model_deploy ...
