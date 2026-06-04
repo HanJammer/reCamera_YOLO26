@@ -303,14 +303,21 @@ bootstrap_tpumlir() {{
     fi
   fi
   configure_tpumlir_env() {{
-    TPUMLIR_PYTHON="${{TPUMLIR_PYTHON:-$(command -v python3)}}"
+    TPUMLIR_PYTHON="${{TPUMLIR_PYTHON:-$fallback_venv/bin/python3}}"
     export TPUMLIR_PYTHON
-    tpumlir_pkg_dir="$($TPUMLIR_PYTHON - <<'PYENV'
+    if [ ! -x "$TPUMLIR_PYTHON" ]; then
+      echo "[reCamera converter] fallback Python missing: $TPUMLIR_PYTHON" >&2
+      return 1
+    fi
+    if ! tpumlir_pkg_dir="$($TPUMLIR_PYTHON - <<'PYENV'
 from pathlib import Path
 import tpu_mlir
 print(Path(tpu_mlir.__file__).resolve().parent)
 PYENV
-)"
+)"; then
+      echo "[reCamera converter] tpu_mlir import failed with $TPUMLIR_PYTHON" >&2
+      return 1
+    fi
     for candidate in       "$fallback_venv/bin"       "$tpumlir_pkg_dir/bin"       "$tpumlir_pkg_dir/../bin"       "$tpumlir_pkg_dir/../../bin"; do
       if [ -d "$candidate" ]; then
         PATH="$candidate:$PATH"
@@ -324,8 +331,10 @@ PYENV
     export PATH LD_LIBRARY_PATH
   }}
   fallback_import_check() {{
-    python3 - <<'PYDEP'
-import pkg_resources, flatbuffers, onnx, onnxruntime, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
+    TPUMLIR_PYTHON="${{TPUMLIR_PYTHON:-$fallback_venv/bin/python3}}"
+    export TPUMLIR_PYTHON
+    "$TPUMLIR_PYTHON" - <<'PYDEP'
+import pkg_resources, flatbuffers, onnx, onnxruntime, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools, tpu_mlir
 PYDEP
     configure_tpumlir_env
     command -v tpuc-opt >/dev/null 2>&1
