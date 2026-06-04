@@ -300,6 +300,7 @@ bootstrap_tpumlir() {{
       'tpu_mlir==1.7' \
       'flatbuffers>=23,<25' \
       'onnx>=1.16,<2' \
+      'onnxruntime>=1.16,<2' \
       'onnxsim>=0.4,<1' \
       'numpy<2' \
       'opencv-python-headless>=4.8,<5' \
@@ -313,7 +314,7 @@ bootstrap_tpumlir() {{
       'torch==2.0.1' \
       'torchvision==0.15.2'
     python3 - <<'PYDEP'
-import pkg_resources, flatbuffers, onnx, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
+import pkg_resources, flatbuffers, onnx, onnxruntime, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
 print('[reCamera converter] fallback venv import check OK')
 PYDEP
   fi
