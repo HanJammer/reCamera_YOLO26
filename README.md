@@ -126,7 +126,7 @@ Then upload:
 5. optional INT8 calibration images — representative images are recommended; if empty, the test image is reused as a minimal fallback,
 6. optional comma-separated class names.
 
-The first run can take several minutes because Docker may need to pull the `sophgo/tpuc_dev` container image and install TPU-MLIR Python dependencies inside it. After you click **Convert**, the app opens a job page with live status, logs, output directory, and download links. Job directories are named like `<model-name>-YYYYMMDD-HHMMSS`. Do not click **Convert** again unless you intentionally want to start another conversion job.
+The first run can take several minutes because Docker may need to pull the `sophgo/tpuc_dev` container image and install TPU-MLIR Python dependencies inside it. The Docker image pull checkbox controls only the Docker image update. Fallback TPU-MLIR Python dependencies are cached under `.cache/tpumlir/` and reused across conversion jobs. After you click **Convert**, the app opens a job page with live status, logs, output directory, and download links. Job directories are named like `<model-name>-YYYYMMDD-HHMMSS`. Do not click **Convert** again unless you intentionally want to start another conversion job.
 
 The app returns a ZIP bundle with the converted model and metadata.
 

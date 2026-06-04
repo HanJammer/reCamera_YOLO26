@@ -24,3 +24,6 @@ hf_analysis/*.txt
 !hf_analysis/yolo26n.transform_cmd.txt
 !hf_analysis/yolo26n-seg.inspect.txt
 !hf_analysis/yolo26n-seg.transform_cmd.txt
+
+# Converter runtime cache
+.cache/

@@ -20,6 +20,7 @@ from .model_info import read_classes, write_model_info
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 JOBS_ROOT = REPO_ROOT / "jobs"
+CACHE_ROOT = REPO_ROOT / ".cache" / "tpumlir"
 DOCKER_IMAGE = os.environ.get("TPUC_DOCKER_IMAGE", "sophgo/tpuc_dev:v3.4")
 
 Precision = Literal["INT8", "F16", "BOTH"]
@@ -301,35 +302,59 @@ bootstrap_tpumlir() {{
       source "$found_setup"
     fi
   fi
-  if ! command -v model_transform >/dev/null 2>&1 || ! command -v model_deploy >/dev/null 2>&1; then
-    echo "[reCamera converter] TPU-MLIR commands not on PATH; preparing isolated venv in /tmp/tpu_mlir_venv"
-    python3 -m venv /tmp/tpu_mlir_venv
-    # shellcheck disable=SC1091
-    source /tmp/tpu_mlir_venv/bin/activate
-    python3 -m pip install --no-input --progress-bar off --upgrade pip wheel
-    python3 -m pip install --no-input --progress-bar off --upgrade --force-reinstall 'setuptools>=65,<81'
-    python3 -m pip install --no-input --progress-bar off \
-      'setuptools>=65,<81' \
-      'tpu_mlir==1.7' \
-      'flatbuffers>=23,<25' \
-      'onnx>=1.16,<2' \
-      'onnxruntime>=1.16,<2' \
-      'onnxsim>=0.4,<1' \
-      'numpy<2' \
-      'opencv-python-headless>=4.8,<5' \
-      'PyYAML>=6,<7' \
-      'requests>=2.31,<3' \
-      'tqdm>=4,<5' \
-      'transformers>=4,<5' \
-      'scipy>=1.10,<2' \
-      'scikit-image>=0.21,<1' \
-      'pycocotools>=2,<3' \
-      'torch==2.0.1' \
-      'torchvision==0.15.2'
+  fallback_import_check() {{
     python3 - <<'PYDEP'
 import pkg_resources, flatbuffers, onnx, onnxruntime, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
-print('[reCamera converter] fallback venv import check OK')
 PYDEP
+  }}
+  if ! command -v model_transform >/dev/null 2>&1 || ! command -v model_deploy >/dev/null 2>&1; then
+    fallback_venv=/cache/tpu_mlir_venv
+    system_python="$(command -v python3)"
+    mkdir -p /cache/pip
+    export PIP_CACHE_DIR=/cache/pip
+    echo "[reCamera converter] TPU-MLIR commands not on PATH; using cached fallback venv at $fallback_venv"
+    if [ -x "$fallback_venv/bin/python3" ]; then
+      # shellcheck disable=SC1091
+      source "$fallback_venv/bin/activate"
+      if fallback_import_check; then
+        echo "[reCamera converter] cached fallback venv import check OK"
+      else
+        echo "[reCamera converter] cached fallback venv is incomplete; rebuilding"
+        "$system_python" -m venv --clear "$fallback_venv"
+        # shellcheck disable=SC1091
+        source "$fallback_venv/bin/activate"
+        install_fallback_deps=1
+      fi
+    else
+      "$system_python" -m venv "$fallback_venv"
+      # shellcheck disable=SC1091
+      source "$fallback_venv/bin/activate"
+      install_fallback_deps=1
+    fi
+    if [ "${{install_fallback_deps:-0}}" = "1" ]; then
+      python3 -m pip install --no-input --progress-bar off --upgrade pip wheel
+      python3 -m pip install --no-input --progress-bar off --upgrade --force-reinstall 'setuptools>=65,<81'
+      python3 -m pip install --no-input --progress-bar off \
+        'setuptools>=65,<81' \
+        'tpu_mlir==1.7' \
+        'flatbuffers>=23,<25' \
+        'onnx>=1.16,<2' \
+        'onnxruntime>=1.16,<2' \
+        'onnxsim>=0.4,<1' \
+        'numpy<2' \
+        'opencv-python-headless>=4.8,<5' \
+        'PyYAML>=6,<7' \
+        'requests>=2.31,<3' \
+        'tqdm>=4,<5' \
+        'transformers>=4,<5' \
+        'scipy>=1.10,<2' \
+        'scikit-image>=0.21,<1' \
+        'pycocotools>=2,<3' \
+        'torch==2.0.1' \
+        'torchvision==0.15.2'
+      fallback_import_check
+      echo "[reCamera converter] fallback venv install/import check OK"
+    fi
   fi
 }}
 bootstrap_tpumlir
@@ -463,10 +488,14 @@ def convert_prepared(
         write_job_status(job_dir, status="running", message=f"Pulling {DOCKER_IMAGE}; first run can take a while")
         run_checked([docker_bin, "pull", DOCKER_IMAGE], cwd=REPO_ROOT, result=result)
 
+    CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+    result.log(f"Using TPU-MLIR cache: {CACHE_ROOT}")
+
     write_job_status(job_dir, status="running", message="Running TPU-MLIR conversion in Docker")
     docker_cmd = [
         docker_bin, "run", "--privileged", "--rm",
         "-v", f"{job_dir}:/workspace",
+        "-v", f"{CACHE_ROOT}:/cache",
         "-w", "/workspace",
         DOCKER_IMAGE,
         "bash", "-lc", script,
@@ -487,7 +516,7 @@ def convert(
     allow_pull: bool = True,
     docker_cli: str | None = None,
 ) -> ConvertResult:
-    job_id, job_dir = new_job_dir()
+    job_id, job_dir = new_job_dir(model_name)
     onnx_path = job_dir / "input" / "model.onnx"
     image_suffix = Path(getattr(test_image, "filename", "test.jpg") or "test.jpg").suffix or ".jpg"
     image_name = f"test{image_suffix}"
