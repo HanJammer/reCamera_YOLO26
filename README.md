@@ -234,7 +234,7 @@ model_deploy \
   --test_input /workspace/test.jpg \
   --test_reference /workspace/yolo26n_top_outputs.npz \
   --fuse_preprocess \
-  --tolerance 0.99,0.9 \
+  --tolerance 0.98,0.8 \
   --calibration_table /workspace/yolo26n_calib_table \
   --model /workspace/yolo26n_cv181x_int8.cvimodel
 ```

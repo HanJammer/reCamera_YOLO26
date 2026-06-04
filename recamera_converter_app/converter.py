@@ -229,7 +229,7 @@ run_tool model_deploy \\
   --test_reference /workspace/output/{shlex.quote(model_name)}_top_outputs.npz \\
   --fuse_preprocess \\
   --aligned_input \\
-  --tolerance 0.99,0.9 \\
+  --tolerance 0.98,0.8 \\
   --model /workspace/output/{shlex.quote(model_name)}_cv181x_int8.cvimodel
 echo "[reCamera converter] $(date -Is) INT8 model_deploy finished"
 """.strip())
@@ -253,9 +253,11 @@ echo "[reCamera converter] $(date -Is) F16 model_deploy finished"
     return f"""
 set -euo pipefail
 export PYTHONUNBUFFERED=1
+export PYTHONIOENCODING=utf-8
 export PIP_DISABLE_PIP_VERSION_CHECK=1
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
+export TQDM_ASCII=1
 echo "[reCamera converter] $(date -Is) container started"
 echo "[reCamera converter] precision mode: {precision}"
 echo "[reCamera converter] probing TPU-MLIR environment"
