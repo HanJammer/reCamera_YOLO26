@@ -390,29 +390,22 @@ PYDEP
     configure_tpumlir_env
     wrapper_dir=/cache/tpumlir_wrappers/bin
     mkdir -p "$wrapper_dir"
-    if ! command -v model_transform >/dev/null 2>&1; then
-      cat > "$wrapper_dir/model_transform" <<'WRAP'
+    PATH="$wrapper_dir:$PATH"
+    export PATH
+    cat > "$wrapper_dir/model_transform" <<'WRAP'
 #!/usr/bin/env bash
 exec "$TPUMLIR_PYTHON" -m tpu_mlir.python.tools.model_transform "$@"
 WRAP
-      chmod +x "$wrapper_dir/model_transform"
-    fi
-    if ! command -v model_deploy >/dev/null 2>&1; then
-      cat > "$wrapper_dir/model_deploy" <<'WRAP'
+    cat > "$wrapper_dir/model_deploy" <<'WRAP'
 #!/usr/bin/env bash
 exec "$TPUMLIR_PYTHON" -m tpu_mlir.python.tools.model_deploy "$@"
 WRAP
-      chmod +x "$wrapper_dir/model_deploy"
-    fi
-    if ! command -v run_calibration >/dev/null 2>&1; then
-      cat > "$wrapper_dir/run_calibration" <<'WRAP'
+    cat > "$wrapper_dir/run_calibration" <<'WRAP'
 #!/usr/bin/env bash
 exec "$TPUMLIR_PYTHON" -m tpu_mlir.python.tools.run_calibration "$@"
 WRAP
-      chmod +x "$wrapper_dir/run_calibration"
-    fi
-    PATH="$wrapper_dir:$PATH"
-    export PATH
+    chmod +x "$wrapper_dir/model_transform" "$wrapper_dir/model_deploy" "$wrapper_dir/run_calibration"
+    hash -r 2>/dev/null || true
   }}
   if ! command -v model_transform >/dev/null 2>&1 || ! command -v model_deploy >/dev/null 2>&1; then
     fallback_venv=/cache/tpu_mlir_venv
