@@ -346,6 +346,20 @@ PYDEP
     source "$fallback_venv/bin/activate"
     echo "[reCamera converter] fallback venv install/import check OK"
   }}
+  ensure_tpumlir_cli() {{
+    if ! command -v model_transform >/dev/null 2>&1; then
+      model_transform() {{ python3 -m tpu_mlir.python.tools.model_transform "$@"; }}
+      export -f model_transform
+    fi
+    if ! command -v model_deploy >/dev/null 2>&1; then
+      model_deploy() {{ python3 -m tpu_mlir.python.tools.model_deploy "$@"; }}
+      export -f model_deploy
+    fi
+    if ! command -v run_calibration >/dev/null 2>&1; then
+      run_calibration() {{ python3 -m tpu_mlir.python.tools.run_calibration "$@"; }}
+      export -f run_calibration
+    fi
+  }}
   if ! command -v model_transform >/dev/null 2>&1 || ! command -v model_deploy >/dev/null 2>&1; then
     fallback_venv=/cache/tpu_mlir_venv
     system_python="$(command -v python3)"
@@ -365,12 +379,20 @@ PYDEP
     else
       build_fallback_venv
     fi
+    ensure_tpumlir_cli
   fi
 }}
 bootstrap_tpumlir
-echo "[reCamera converter] model_transform: $(command -v model_transform || echo missing)"
-echo "[reCamera converter] model_deploy: $(command -v model_deploy || echo missing)"
-echo "[reCamera converter] run_calibration: $(command -v run_calibration || echo missing)"
+describe_cmd() {{
+  if command -v "$1" >/dev/null 2>&1; then
+    type -t "$1"
+  else
+    echo missing
+  fi
+}}
+echo "[reCamera converter] model_transform: $(describe_cmd model_transform)"
+echo "[reCamera converter] model_deploy: $(describe_cmd model_deploy)"
+echo "[reCamera converter] run_calibration: $(describe_cmd run_calibration)"
 python3 -m pip show tpu_mlir 2>/dev/null | sed 's/^/[tpu_mlir package] /' || true
 run_tool() {{
   if command -v stdbuf >/dev/null 2>&1; then
