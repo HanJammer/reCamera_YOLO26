@@ -395,7 +395,12 @@ echo "[reCamera converter] model_deploy: $(describe_cmd model_deploy)"
 echo "[reCamera converter] run_calibration: $(describe_cmd run_calibration)"
 python3 -m pip show tpu_mlir 2>/dev/null | sed 's/^/[tpu_mlir package] /' || true
 run_tool() {{
-  if command -v stdbuf >/dev/null 2>&1; then
+  # stdbuf cannot execute shell functions; TPU-MLIR fallback commands may be
+  # functions wrapping `python3 -m ...` when the package does not expose CLI
+  # entrypoints on PATH.
+  if [ "$(type -t "$1" 2>/dev/null || true)" = "function" ]; then
+    "$@"
+  elif command -v stdbuf >/dev/null 2>&1; then
     stdbuf -oL -eL "$@"
   else
     "$@"
