@@ -119,13 +119,14 @@ http://127.0.0.1:7860
 
 Then upload:
 
-1. ONNX model,
-2. precision/output mode — `INT8` default/recommended for reCamera, `F16` experimental, or `Both`,
-3. optional replacement test image — if you leave it empty, the bundled author-provided `test.jpg` is used,
-4. optional INT8 calibration images — representative images are recommended; if empty, the test image is reused as a minimal fallback,
-5. optional comma-separated class names.
+1. model name, for example `yolo26n` — used for TPU-MLIR output names and the job directory prefix,
+2. ONNX model,
+3. precision/output mode — `INT8` default/recommended for reCamera, `F16` experimental, or `Both`,
+4. optional replacement test image — if you leave it empty, the bundled author-provided `test.jpg` is used,
+5. optional INT8 calibration images — representative images are recommended; if empty, the test image is reused as a minimal fallback,
+6. optional comma-separated class names.
 
-The first run can take several minutes because Docker may need to pull the `sophgo/tpuc_dev` container image and install TPU-MLIR Python dependencies inside it. After you click **Convert**, the app opens a job page with live status, logs, output directory, and download links. Do not click **Convert** again unless you intentionally want to start another conversion job.
+The first run can take several minutes because Docker may need to pull the `sophgo/tpuc_dev` container image and install TPU-MLIR Python dependencies inside it. After you click **Convert**, the app opens a job page with live status, logs, output directory, and download links. Job directories are named like `<model-name>-YYYYMMDD-HHMMSS`. Do not click **Convert** again unless you intentionally want to start another conversion job.
 
 The app returns a ZIP bundle with the converted model and metadata.
 

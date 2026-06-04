@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import subprocess
@@ -41,10 +42,17 @@ class ConvertResult:
         (self.job_dir / "logs" / "conversion.log").write_text("\n".join(self.logs) + "\n", encoding="utf-8")
 
 
-def new_job_dir() -> tuple[str, Path]:
+def safe_job_prefix(model_name: str | None) -> str:
+    value = (model_name or "").strip().lower()
+    value = re.sub(r"[^a-z0-9._-]+", "-", value)
+    value = value.strip("._-")
+    return value or "model"
+
+
+def new_job_dir(model_name: str | None = None) -> tuple[str, Path]:
     JOBS_ROOT.mkdir(exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    base = f"job-{stamp}"
+    base = f"{safe_job_prefix(model_name)}-{stamp}"
     job_id = base
     i = 1
     while (JOBS_ROOT / job_id).exists():
@@ -255,8 +263,11 @@ set -euo pipefail
 export PYTHONUNBUFFERED=1
 export PYTHONIOENCODING=utf-8
 export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PIP_PROGRESS_BAR=off
 export LC_ALL=C.UTF-8
 export LANG=C.UTF-8
+export TERM=dumb
+export NO_COLOR=1
 export TQDM_ASCII=1
 echo "[reCamera converter] $(date -Is) container started"
 echo "[reCamera converter] precision mode: {precision}"
@@ -295,8 +306,8 @@ bootstrap_tpumlir() {{
     python3 -m venv /tmp/tpu_mlir_venv
     # shellcheck disable=SC1091
     source /tmp/tpu_mlir_venv/bin/activate
-    python3 -m pip install --no-input --upgrade pip wheel
-    python3 -m pip install --no-input --upgrade --force-reinstall 'setuptools>=65,<81'
+    python3 -m pip install --no-input --progress-bar off --upgrade pip wheel
+    python3 -m pip install --no-input --progress-bar off --upgrade --force-reinstall 'setuptools>=65,<81'
     python3 -m pip install --no-input --progress-bar off \
       'setuptools>=65,<81' \
       'tpu_mlir==1.7' \

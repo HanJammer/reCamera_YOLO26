@@ -6,7 +6,7 @@ import webbrowser
 from pathlib import Path
 
 import uvicorn
-from fastapi import File, Form, Request, UploadFile
+from fastapi import File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -108,13 +108,17 @@ def convert_route(
     onnx_file: UploadFile = File(...),
     test_image: UploadFile | None = File(None),
     calibration_images: list[UploadFile] | None = File(None),
-    model_name: str = Form("yolo26n"),
+    model_name: str = Form(...),
     precision: str = Form("INT8"),
     classes_text: str = Form(""),
     pull_image: str | None = Form(None),
     docker_cli: str = Form(""),
 ):
-    job_id, job_dir = new_job_dir()
+    clean_model_name = model_name.strip()
+    if not clean_model_name:
+        raise HTTPException(status_code=422, detail="Model name is required")
+
+    job_id, job_dir = new_job_dir(clean_model_name)
     write_job_status(job_dir, status="queued", message="Uploaded files; conversion thread will start now")
 
     onnx_path = job_dir / "input" / "model.onnx"
@@ -153,7 +157,7 @@ def convert_route(
             "image_path": image_path,
             "image_name": image_name,
             "calibration_count": calibration_count,
-            "model_name": model_name.strip() or "model",
+            "model_name": clean_model_name,
             "precision": precision,
             "classes_text": classes_text,
             "allow_pull": bool(pull_image),
