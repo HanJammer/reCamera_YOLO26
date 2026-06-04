@@ -20,7 +20,7 @@ from .model_info import read_classes, write_model_info
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 JOBS_ROOT = REPO_ROOT / "jobs"
-CACHE_ROOT = REPO_ROOT / ".cache" / "tpumlir"
+CACHE_VOLUME = os.environ.get("RECAMERA_TPUMLIR_CACHE_VOLUME", "recamera_tpumlir_cache")
 DOCKER_IMAGE = os.environ.get("TPUC_DOCKER_IMAGE", "sophgo/tpuc_dev:v3.4")
 
 Precision = Literal["INT8", "F16", "BOTH"]
@@ -498,14 +498,13 @@ def convert_prepared(
         write_job_status(job_dir, status="running", message=f"Pulling {DOCKER_IMAGE}; first run can take a while")
         run_checked([docker_bin, "pull", DOCKER_IMAGE], cwd=REPO_ROOT, result=result)
 
-    CACHE_ROOT.mkdir(parents=True, exist_ok=True)
-    result.log(f"Using TPU-MLIR cache: {CACHE_ROOT}")
+    result.log(f"Using TPU-MLIR Docker cache volume: {CACHE_VOLUME}")
 
     write_job_status(job_dir, status="running", message="Running TPU-MLIR conversion in Docker")
     docker_cmd = [
         docker_bin, "run", "--privileged", "--rm",
         "-v", f"{job_dir}:/workspace",
-        "-v", f"{CACHE_ROOT}:/cache",
+        "-v", f"{CACHE_VOLUME}:/cache",
         "-w", "/workspace",
         DOCKER_IMAGE,
         "bash", "-lc", script,
