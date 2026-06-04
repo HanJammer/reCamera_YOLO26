@@ -347,16 +347,18 @@ PYDEP
     echo "[reCamera converter] fallback venv install/import check OK"
   }}
   ensure_tpumlir_cli() {{
+    TPUMLIR_PYTHON="${{TPUMLIR_PYTHON:-$fallback_venv/bin/python3}}"
+    export TPUMLIR_PYTHON
     if ! command -v model_transform >/dev/null 2>&1; then
-      model_transform() {{ python3 -m tpu_mlir.python.tools.model_transform "$@"; }}
+      model_transform() {{ "$TPUMLIR_PYTHON" -m tpu_mlir.python.tools.model_transform "$@"; }}
       export -f model_transform
     fi
     if ! command -v model_deploy >/dev/null 2>&1; then
-      model_deploy() {{ python3 -m tpu_mlir.python.tools.model_deploy "$@"; }}
+      model_deploy() {{ "$TPUMLIR_PYTHON" -m tpu_mlir.python.tools.model_deploy "$@"; }}
       export -f model_deploy
     fi
     if ! command -v run_calibration >/dev/null 2>&1; then
-      run_calibration() {{ python3 -m tpu_mlir.python.tools.run_calibration "$@"; }}
+      run_calibration() {{ "$TPUMLIR_PYTHON" -m tpu_mlir.python.tools.run_calibration "$@"; }}
       export -f run_calibration
     fi
   }}
