@@ -96,7 +96,7 @@ The image normally contains TPU-MLIR. The WebUI first tries to source the image'
 ## Quick start: WebUI
 
 ```bash
-git clone <this-repo-url>
+git clone https://github.com/HanJammer/reCamera_YOLO26.git
 cd reCamera_YOLO26
 
 python -m venv .venv
