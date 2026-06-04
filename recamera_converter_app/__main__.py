@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 import threading
 import webbrowser
@@ -200,7 +201,8 @@ def main() -> None:
         webbrowser.open(url)
     except Exception:
         pass
-    uvicorn.run(app, host="127.0.0.1", port=7860)
+    access_log = os.environ.get("RECAMERA_ACCESS_LOG", "1").strip().lower() not in {"0", "false", "no", "off"}
+    uvicorn.run(app, host="127.0.0.1", port=7860, use_colors=False, access_log=access_log)
 
 
 if __name__ == "__main__":

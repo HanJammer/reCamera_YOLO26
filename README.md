@@ -111,6 +111,16 @@ pip install -r requirements-app.txt
 python -m recamera_converter_app
 ```
 
+If the repeated `/api/job/...` polling lines are too noisy, disable Uvicorn access logs:
+
+```bash
+# Linux/macOS
+RECAMERA_ACCESS_LOG=0 python -m recamera_converter_app
+
+# Windows PowerShell
+$env:RECAMERA_ACCESS_LOG="0"; python -m recamera_converter_app
+```
+
 Open:
 
 ```text
