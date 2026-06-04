@@ -368,6 +368,8 @@ PYDEP
     "$system_python" -m venv "$tmp_venv"
     # shellcheck disable=SC1091
     source "$tmp_venv/bin/activate"
+    TPUMLIR_PYTHON="$tmp_venv/bin/python3"
+    export TPUMLIR_PYTHON
     install_fallback_deps
     configure_tpumlir_env
     fallback_import_check
@@ -377,6 +379,9 @@ PYDEP
     mv "$tmp_venv" "$fallback_venv"
     # shellcheck disable=SC1091
     source "$fallback_venv/bin/activate"
+    TPUMLIR_PYTHON="$fallback_venv/bin/python3"
+    export TPUMLIR_PYTHON
+    configure_tpumlir_env
     echo "[reCamera converter] fallback venv install/import check OK"
   }}
   ensure_tpumlir_cli() {{
