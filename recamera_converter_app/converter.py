@@ -307,6 +307,45 @@ bootstrap_tpumlir() {{
 import pkg_resources, flatbuffers, onnx, onnxruntime, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
 PYDEP
   }}
+  install_fallback_deps() {{
+    python3 -m pip install --no-input --progress-bar off --upgrade pip wheel
+    python3 -m pip install --no-input --progress-bar off --upgrade --force-reinstall 'setuptools>=65,<81'
+    python3 -m pip install --no-input --progress-bar off \
+      'setuptools>=65,<81' \
+      'tpu_mlir==1.7' \
+      'flatbuffers>=23,<25' \
+      'onnx>=1.16,<2' \
+      'onnxruntime>=1.16,<2' \
+      'onnxsim>=0.4,<1' \
+      'numpy<2' \
+      'opencv-python-headless>=4.8,<5' \
+      'PyYAML>=6,<7' \
+      'requests>=2.31,<3' \
+      'tqdm>=4,<5' \
+      'transformers>=4,<5' \
+      'scipy>=1.10,<2' \
+      'scikit-image>=0.21,<1' \
+      'pycocotools>=2,<3' \
+      'torch==2.0.1' \
+      'torchvision==0.15.2'
+  }}
+  build_fallback_venv() {{
+    tmp_venv="/cache/tpu_mlir_venv.tmp.$$"
+    old_venv="/cache/tpu_mlir_venv.broken-$(date +%Y%m%d-%H%M%S)-$$"
+    rm -rf "$tmp_venv"
+    "$system_python" -m venv "$tmp_venv"
+    # shellcheck disable=SC1091
+    source "$tmp_venv/bin/activate"
+    install_fallback_deps
+    fallback_import_check
+    if [ -e "$fallback_venv" ]; then
+      mv "$fallback_venv" "$old_venv" || rm -rf "$fallback_venv"
+    fi
+    mv "$tmp_venv" "$fallback_venv"
+    # shellcheck disable=SC1091
+    source "$fallback_venv/bin/activate"
+    echo "[reCamera converter] fallback venv install/import check OK"
+  }}
   if ! command -v model_transform >/dev/null 2>&1 || ! command -v model_deploy >/dev/null 2>&1; then
     fallback_venv=/cache/tpu_mlir_venv
     system_python="$(command -v python3)"
@@ -319,41 +358,12 @@ PYDEP
       if fallback_import_check; then
         echo "[reCamera converter] cached fallback venv import check OK"
       else
-        echo "[reCamera converter] cached fallback venv is incomplete; rebuilding"
-        "$system_python" -m venv --clear "$fallback_venv"
-        # shellcheck disable=SC1091
-        source "$fallback_venv/bin/activate"
-        install_fallback_deps=1
+        echo "[reCamera converter] cached fallback venv is incomplete; rebuilding safely"
+        deactivate 2>/dev/null || true
+        build_fallback_venv
       fi
     else
-      "$system_python" -m venv "$fallback_venv"
-      # shellcheck disable=SC1091
-      source "$fallback_venv/bin/activate"
-      install_fallback_deps=1
-    fi
-    if [ "${{install_fallback_deps:-0}}" = "1" ]; then
-      python3 -m pip install --no-input --progress-bar off --upgrade pip wheel
-      python3 -m pip install --no-input --progress-bar off --upgrade --force-reinstall 'setuptools>=65,<81'
-      python3 -m pip install --no-input --progress-bar off \
-        'setuptools>=65,<81' \
-        'tpu_mlir==1.7' \
-        'flatbuffers>=23,<25' \
-        'onnx>=1.16,<2' \
-        'onnxruntime>=1.16,<2' \
-        'onnxsim>=0.4,<1' \
-        'numpy<2' \
-        'opencv-python-headless>=4.8,<5' \
-        'PyYAML>=6,<7' \
-        'requests>=2.31,<3' \
-        'tqdm>=4,<5' \
-        'transformers>=4,<5' \
-        'scipy>=1.10,<2' \
-        'scikit-image>=0.21,<1' \
-        'pycocotools>=2,<3' \
-        'torch==2.0.1' \
-        'torchvision==0.15.2'
-      fallback_import_check
-      echo "[reCamera converter] fallback venv install/import check OK"
+      build_fallback_venv
     fi
   fi
 }}
