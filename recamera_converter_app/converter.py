@@ -302,10 +302,33 @@ bootstrap_tpumlir() {{
       source "$found_setup"
     fi
   fi
+  configure_tpumlir_env() {{
+    TPUMLIR_PYTHON="${{TPUMLIR_PYTHON:-$(command -v python3)}}"
+    export TPUMLIR_PYTHON
+    tpumlir_pkg_dir="$($TPUMLIR_PYTHON - <<'PYENV'
+from pathlib import Path
+import tpu_mlir
+print(Path(tpu_mlir.__file__).resolve().parent)
+PYENV
+)"
+    for candidate in       "$fallback_venv/bin"       "$tpumlir_pkg_dir/bin"       "$tpumlir_pkg_dir/../bin"       "$tpumlir_pkg_dir/../../bin"; do
+      if [ -d "$candidate" ]; then
+        PATH="$candidate:$PATH"
+      fi
+    done
+    for candidate in       "$tpumlir_pkg_dir/lib"       "$tpumlir_pkg_dir/../lib"       "$tpumlir_pkg_dir/../../lib"; do
+      if [ -d "$candidate" ]; then
+        LD_LIBRARY_PATH="$candidate:${{LD_LIBRARY_PATH:-}}"
+      fi
+    done
+    export PATH LD_LIBRARY_PATH
+  }}
   fallback_import_check() {{
     python3 - <<'PYDEP'
 import pkg_resources, flatbuffers, onnx, onnxruntime, numpy, cv2, yaml, requests, tqdm, scipy, skimage, pycocotools
 PYDEP
+    configure_tpumlir_env
+    command -v tpuc-opt >/dev/null 2>&1
   }}
   install_fallback_deps() {{
     python3 -m pip install --no-input --progress-bar off --upgrade pip wheel
@@ -337,6 +360,7 @@ PYDEP
     # shellcheck disable=SC1091
     source "$tmp_venv/bin/activate"
     install_fallback_deps
+    configure_tpumlir_env
     fallback_import_check
     if [ -e "$fallback_venv" ]; then
       mv "$fallback_venv" "$old_venv" || rm -rf "$fallback_venv"
@@ -349,6 +373,7 @@ PYDEP
   ensure_tpumlir_cli() {{
     TPUMLIR_PYTHON="${{TPUMLIR_PYTHON:-$fallback_venv/bin/python3}}"
     export TPUMLIR_PYTHON
+    configure_tpumlir_env
     if ! command -v model_transform >/dev/null 2>&1; then
       model_transform() {{ "$TPUMLIR_PYTHON" -m tpu_mlir.python.tools.model_transform "$@"; }}
       export -f model_transform
@@ -372,9 +397,9 @@ PYDEP
       # shellcheck disable=SC1091
       source "$fallback_venv/bin/activate"
       if fallback_import_check; then
-        echo "[reCamera converter] cached fallback venv import check OK"
+        echo "[reCamera converter] cached fallback venv and tpuc-opt check OK"
       else
-        echo "[reCamera converter] cached fallback venv is incomplete; rebuilding safely"
+        echo "[reCamera converter] cached fallback venv is incomplete or missing tpuc-opt; rebuilding safely"
         deactivate 2>/dev/null || true
         build_fallback_venv
       fi
