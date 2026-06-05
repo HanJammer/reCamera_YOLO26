@@ -14,6 +14,8 @@ YOLO detection ONNX -> TPU-MLIR -> CV181x INT8/F16 .cvimodel + model metadata
 
 It is intended for reCamera users who want to try newer YOLO exports, custom-trained detection models, or models whose ONNX graph does not match Seeed's stock conversion assumptions.
 
+**Video presentation of the tool** ([source video](https://www.youtube.com/watch?v=XgPjyj2U8YQ)).
+
 ## Why this exists
 
 Some reCamera conversion flows and examples are YOLO11-oriented and may hardcode internal ONNX tensor names such as:
